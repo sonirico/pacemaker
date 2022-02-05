@@ -2,6 +2,7 @@ package pacemaker
 
 import (
 	"context"
+	"github.com/sonirico/pacemaker/internal"
 	"sync"
 	"time"
 )
@@ -29,8 +30,9 @@ type FixedTruncatedWindowArgs struct {
 // Rate limit interval: new window every 10 seconds
 // First request window: from 2022-02-05 10:23:20 to 2022-02-05 10:23:30
 type FixedTruncatedWindowRateLimiter struct {
-	db    fixedTruncatedWindowStorage
-	clock clock
+	db             fixedTruncatedWindowStorage
+	clock          clock
+	validateTokens func(uint64) uint64
 
 	mu sync.Mutex
 
@@ -53,6 +55,11 @@ func (l *FixedTruncatedWindowRateLimiter) Check(ctx context.Context) (time.Durat
 }
 
 func (l *FixedTruncatedWindowRateLimiter) check(ctx context.Context, tokens uint64) (time.Duration, error) {
+	tokens = l.validateTokens(tokens)
+	if tokens > l.capacity {
+		return 0, ErrTokensGreaterThanCapacity
+	}
+
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -85,16 +92,19 @@ func (l *FixedTruncatedWindowRateLimiter) check(ctx context.Context, tokens uint
 	return 0, nil
 }
 
+func (l *FixedTruncatedWindowRateLimiter) fixedWindow() {}
+
 // NewFixedTruncatedWindowRateLimiter returns a new instance of FixedTruncatedWindowRateLimiter from struct of args
 func NewFixedTruncatedWindowRateLimiter(
 	args FixedTruncatedWindowArgs,
-) FixedTruncatedWindowRateLimiter {
-	return FixedTruncatedWindowRateLimiter{
+) *FixedTruncatedWindowRateLimiter {
+	return &FixedTruncatedWindowRateLimiter{
 		capacity:         args.Capacity,
 		rate:             args.Rate.Duration(),
 		clock:            args.Clock,
 		db:               args.DB,
 		rateLimitReached: false,
+		validateTokens:   internal.AtLeast(1),
 	}
 }
 

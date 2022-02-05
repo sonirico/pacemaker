@@ -2,6 +2,7 @@ package pacemaker
 
 import (
 	"context"
+	"github.com/sonirico/pacemaker/internal"
 	"sync"
 	"time"
 )
@@ -27,6 +28,8 @@ type FixedWindowRateLimiter struct {
 
 	clock clock
 
+	validateTokens func(uint64) uint64
+
 	deadline time.Time
 
 	mu sync.Mutex
@@ -43,6 +46,11 @@ func (l *FixedWindowRateLimiter) Check(ctx context.Context) (time.Duration, erro
 }
 
 func (l *FixedWindowRateLimiter) check(ctx context.Context, tokens uint64) (time.Duration, error) {
+	tokens = l.validateTokens(tokens)
+	if tokens > l.capacity {
+		return 0, ErrTokensGreaterThanCapacity
+	}
+
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -92,13 +100,16 @@ func (l *FixedWindowRateLimiter) check(ctx context.Context, tokens uint64) (time
 	return 0, nil
 }
 
+func (l *FixedWindowRateLimiter) fixedWindow() {}
+
 // NewFixedWindowRateLimiter returns a new instance of FixedWindowRateLimiter from struct of args
-func NewFixedWindowRateLimiter(args FixedWindowArgs) FixedWindowRateLimiter {
-	return FixedWindowRateLimiter{
-		capacity: args.Capacity,
-		rate:     args.Rate,
-		clock:    args.Clock,
-		db:       args.DB,
+func NewFixedWindowRateLimiter(args FixedWindowArgs) *FixedWindowRateLimiter {
+	return &FixedWindowRateLimiter{
+		capacity:       args.Capacity,
+		rate:           args.Rate,
+		clock:          args.Clock,
+		db:             args.DB,
+		validateTokens: internal.AtLeast(1),
 	}
 }
 

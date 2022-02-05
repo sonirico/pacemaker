@@ -141,7 +141,7 @@ func TestNewFixedTruncatedWindowRateLimiter(t *testing.T) {
 			rl := NewFixedTruncatedWindowRateLimiter(FixedTruncatedWindowArgs{
 				Capacity: test.capacity,
 				Clock:    clock,
-				DB:       newFixedTruncatedWindowMemoryStorage(),
+				DB:       NewFixedTruncatedWindowMemoryStorage(),
 				Rate:     test.rate,
 			})
 

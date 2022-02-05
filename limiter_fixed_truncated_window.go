@@ -13,10 +13,6 @@ type fixedTruncatedWindowStorage interface {
 	) (uint64, error)
 }
 
-// TruncateWindow indicates whether the time window in created by truncating the first request time of arrival or if
-// the first request initiates the window as is.
-// TruncateWindow bool
-
 type FixedTruncatedWindowArgs struct {
 	Capacity uint64
 	Rate     Rate
@@ -26,6 +22,11 @@ type FixedTruncatedWindowArgs struct {
 	DB fixedTruncatedWindowStorage
 }
 
+// FixedTruncatedWindowRateLimiter limits how many requests can be make in a time window. This window is calculated
+// by truncating the first request's time of to the limit rate in order to adjust to real time passing. E.g:
+// First request time: 2022-02-05 10:23:23
+// Rate limit interval: new window every 10 seconds
+// First request window: from 2022-02-05 10:23:20 to 2022-02-05 10:23:30
 type FixedTruncatedWindowRateLimiter struct {
 	db    fixedTruncatedWindowStorage
 	clock clock
@@ -38,6 +39,13 @@ type FixedTruncatedWindowRateLimiter struct {
 	rateLimitReached bool
 }
 
+// Check returns how much time to wait to perform the request and an error indicating whether the rate limit
+// was exhausted or any kind or error happened when updating the backend. Typically, you would do
+//
+// ttw, err := limiter.Check(ctx)
+// if errors.Is(ErrRateLimitExceeded) {
+// 		<-time.After(ttw) // Wait, or enqueue your request
+// }
 func (l *FixedTruncatedWindowRateLimiter) Check(ctx context.Context) (time.Duration, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -71,6 +79,7 @@ func (l *FixedTruncatedWindowRateLimiter) Check(ctx context.Context) (time.Durat
 	return 0, nil
 }
 
+// NewFixedTruncatedWindowRateLimiter returns a new instance of FixedTruncatedWindowRateLimiter from struct of args
 func NewFixedTruncatedWindowRateLimiter(
 	args FixedTruncatedWindowArgs,
 ) FixedTruncatedWindowRateLimiter {
@@ -83,13 +92,16 @@ func NewFixedTruncatedWindowRateLimiter(
 	}
 }
 
-type fixedTruncatedWindowMemoryStorage struct {
+// FixedTruncatedWindowMemoryStorage is an in-memory storage for the rate limit state. Preferred option when testing and
+// working with standalone instances of your program and do not care about it restarting and not being exactly compliant
+// with servers rate limits
+type FixedTruncatedWindowMemoryStorage struct {
 	mu             sync.Mutex
 	previousWindow time.Time
 	counter        uint64
 }
 
-func (s *fixedTruncatedWindowMemoryStorage) Inc(
+func (s *FixedTruncatedWindowMemoryStorage) Inc(
 	ctx context.Context,
 	newWindow time.Time,
 ) (uint64, error) {
@@ -105,6 +117,7 @@ func (s *fixedTruncatedWindowMemoryStorage) Inc(
 	return s.counter, ctx.Err()
 }
 
-func newFixedTruncatedWindowMemoryStorage() *fixedTruncatedWindowMemoryStorage {
-	return &fixedTruncatedWindowMemoryStorage{}
+// NewFixedTruncatedWindowMemoryStorage returns a new instance of FixedTruncatedWindowMemoryStorage
+func NewFixedTruncatedWindowMemoryStorage() *FixedTruncatedWindowMemoryStorage {
+	return &FixedTruncatedWindowMemoryStorage{}
 }

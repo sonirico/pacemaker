@@ -1,103 +1,127 @@
 package pacemaker
 
-//import (
-//	"sync"
-//	"time"
-//)
-//
-//func windowFuncFactory(args FixedWindowArgs) func(time.Time) time.Time {
-//	if args.TruncateWindow {
-//		return func(t time.Time) time.Time {
-//			return t.Truncate(args.Rate.Duration())
-//		}
-//	}
-//
-//	return func(t time.Time) time.Time {
-//		return t.Add(args.Rate.Duration())
-//	}
-//}
-//
-//type FixedWindowArgs struct {
-//	Capacity int
-//	Rate     Rate
-//	// TruncateWindow indicates whether the time window in created by truncating the first request time of arrival or if
-//	// the first request initiates the window as is.
-//	TruncateWindow bool
-//}
-//
-//type FixedWindowRateLimiter struct {
-//	rate Rate
-//
-//	clock RealClock
-//
-//	window time.Time
-//
-//	mu sync.Mutex
-//
-//	capacity     int
-//	overCapacity bool
-//}
-//
-//func (l *FixedWindowRateLimiter) Check(_ FixedWindowArgs) (ttw time.Duration, pass bool) {
-//	l.mu.Lock()
-//	defer l.mu.Unlock()
-//
-//	now := l.clock.Now()
-//
-//	rate := l.rate.Duration()
-//	window := now.Truncate(rate)
-//
-//	if l.window != window {
-//		l.overCapacity = false
-//		l.window = window
-//	}
-//
-//	ttw := rate - now.Sub(window)
-//
-//	if !l.initialGotten {
-//		l.initialGotten = true
-//
-//		l.window = now.Add(l.rate.Duration())
-//		return 0, true
-//	}
-//
-//	window := now.Add(l.rate.Duration())
-//	if window != l.window {
-//		// we are in the next window
-//		l.overCapacity = false
-//	}
-//
-//	l.overCapacity = l.slotsUsed >= l.capacity
-//
-//	l.slotsUsed++
-//	l.slotsAvailable--
-//
-//	now := l.clock.Now()
-//
-//	ttw = time.Duration(0)
-//	pass = true
-//
-//	if l.deadline.Before(now) {
-//		// Deadline to refill reached
-//		l.slotsAvailable = l.capacity
-//	}
-//
-//	if l.overCapacity {
-//		l.deadline = now.Add(l.rate.Duration())
-//		ttw = l.rate.Duration() - now.Sub(l)
-//		pass = false
-//		return
-//	}
-//
-//	pass = false
-//	return
-//}
-//
-//func NewFixedWindowRateLimiter(args FixedWindowArgs) FixedWindowRateLimiter {
-//	return FixedWindowRateLimiter{
-//		capacity:   args.Capacity,
-//		rate:       args.Rate,
-//		windowFunc: windowFuncFactory(args),
-//	}
-//}
-//
+import (
+	"context"
+	"sync"
+	"time"
+)
+
+type fixedWindowStorage interface {
+	Inc(ctx context.Context, deadline time.Time) (uint64, error)
+}
+
+type FixedWindowArgs struct {
+	Capacity uint64
+	Rate     Rate
+	Clock    clock
+	DB       fixedWindowStorage
+}
+
+// FixedWindowRateLimiter limits how many requests can be make in a time window. This window is calculated
+// by considering the start of the window the exact same moment the first request came.
+// First request time: 2022-02-05 10:23:23
+// Rate limit interval: new window every 10 seconds
+// First request window: from 2022-02-05 10:23:23 to 2022-02-05 10:23:33
+type FixedWindowRateLimiter struct {
+	rate Rate
+
+	clock clock
+
+	deadline time.Time
+
+	mu sync.Mutex
+
+	capacity uint64
+
+	rateLimitReached bool
+
+	db fixedWindowStorage
+}
+
+func (l *FixedWindowRateLimiter) Check(ctx context.Context) (time.Duration, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	now := l.clock.Now()
+
+	if l.deadline.IsZero() {
+		// Handle first request
+		l.rateLimitReached = false
+		l.deadline = now.Add(l.rate.Duration())
+	} else if !l.deadline.After(now) {
+		// If deadline is before in time than now, calculate next one
+
+		// now -> 13
+		// deadline -> 23
+		// ----
+		// now -> 25
+		// deadline -> 23
+		// next deadline -> 33
+		// ----
+		// ....
+		// now -> 56
+		// deadline -> 33
+		// next deadline -> 63 (33 + 3 * rate) ; 3 = (56 - 33) / 10 + 1
+		missedCycles := now.Sub(l.deadline)/l.rate.Duration() + 1
+		l.deadline = l.deadline.Add(l.rate.Duration() * missedCycles)
+		l.rateLimitReached = false
+	}
+
+	ttw := l.deadline.Sub(now)
+
+	if l.rateLimitReached {
+		return ttw, ErrRateLimitExceeded
+	}
+
+	c, err := l.db.Inc(ctx, l.deadline)
+
+	if err != nil {
+		// TODO: Make this behaviour configurable. If storage cannot be accessed, do we pass, or do we block...?
+		return 0, err
+	}
+
+	if c > l.capacity {
+		l.rateLimitReached = true
+		return ttw, ErrRateLimitExceeded
+	}
+
+	return 0, nil
+}
+
+// NewFixedWindowRateLimiter returns a new instance of FixedWindowRateLimiter from struct of args
+func NewFixedWindowRateLimiter(args FixedWindowArgs) FixedWindowRateLimiter {
+	return FixedWindowRateLimiter{
+		capacity: args.Capacity,
+		rate:     args.Rate,
+		clock:    args.Clock,
+		db:       args.DB,
+	}
+}
+
+// FixedWindowMemoryStorage is an in-memory storage for the rate limit state. Preferred option when testing and working
+// with standalone instances of your program and do not care about it restarting and not being exactly compliant with
+// servers rate limits
+type FixedWindowMemoryStorage struct {
+	mu       sync.Mutex
+	counter  uint64
+	deadline time.Time
+}
+
+func (f *FixedWindowMemoryStorage) Inc(ctx context.Context, deadline time.Time) (uint64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if deadline != f.deadline {
+		f.deadline = deadline
+		f.counter = 0
+	}
+
+	f.counter++
+
+	return f.counter, ctx.Err()
+}
+
+// NewFixedWindowMemoryStorage returns a new instance of FixedWindowMemoryStorage
+func NewFixedWindowMemoryStorage() *FixedWindowMemoryStorage {
+	return &FixedWindowMemoryStorage{}
+}

@@ -7,7 +7,7 @@ import (
 )
 
 type fixedWindowStorage interface {
-	Inc(ctx context.Context, deadline time.Time) (uint64, error)
+	Inc(ctx context.Context, deadline time.Time, tokens uint64) (uint64, error)
 }
 
 type FixedWindowArgs struct {
@@ -39,6 +39,10 @@ type FixedWindowRateLimiter struct {
 }
 
 func (l *FixedWindowRateLimiter) Check(ctx context.Context) (time.Duration, error) {
+	return l.check(ctx, 1)
+}
+
+func (l *FixedWindowRateLimiter) check(ctx context.Context, tokens uint64) (time.Duration, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -73,7 +77,7 @@ func (l *FixedWindowRateLimiter) Check(ctx context.Context) (time.Duration, erro
 		return ttw, ErrRateLimitExceeded
 	}
 
-	c, err := l.db.Inc(ctx, l.deadline)
+	c, err := l.db.Inc(ctx, l.deadline, tokens)
 
 	if err != nil {
 		// TODO: Make this behaviour configurable. If storage cannot be accessed, do we pass, or do we block...?
@@ -107,7 +111,7 @@ type FixedWindowMemoryStorage struct {
 	deadline time.Time
 }
 
-func (f *FixedWindowMemoryStorage) Inc(ctx context.Context, deadline time.Time) (uint64, error) {
+func (f *FixedWindowMemoryStorage) Inc(ctx context.Context, deadline time.Time, tokens uint64) (uint64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -116,7 +120,7 @@ func (f *FixedWindowMemoryStorage) Inc(ctx context.Context, deadline time.Time) 
 		f.counter = 0
 	}
 
-	f.counter++
+	f.counter += tokens
 
 	return f.counter, ctx.Err()
 }

@@ -10,6 +10,7 @@ type fixedTruncatedWindowStorage interface {
 	Inc(
 		ctx context.Context,
 		window time.Time,
+		tokens uint64,
 	) (uint64, error)
 }
 
@@ -46,7 +47,12 @@ type FixedTruncatedWindowRateLimiter struct {
 // if errors.Is(ErrRateLimitExceeded) {
 // 		<-time.After(ttw) // Wait, or enqueue your request
 // }
+
 func (l *FixedTruncatedWindowRateLimiter) Check(ctx context.Context) (time.Duration, error) {
+	return l.check(ctx, 1)
+}
+
+func (l *FixedTruncatedWindowRateLimiter) check(ctx context.Context, tokens uint64) (time.Duration, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -65,7 +71,7 @@ func (l *FixedTruncatedWindowRateLimiter) Check(ctx context.Context) (time.Durat
 		return ttw, ErrRateLimitExceeded
 	}
 
-	c, err := l.db.Inc(ctx, window)
+	c, err := l.db.Inc(ctx, window, tokens)
 
 	if err != nil {
 		return 0, err
@@ -104,6 +110,7 @@ type FixedTruncatedWindowMemoryStorage struct {
 func (s *FixedTruncatedWindowMemoryStorage) Inc(
 	ctx context.Context,
 	newWindow time.Time,
+	tokens uint64,
 ) (uint64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -112,7 +119,7 @@ func (s *FixedTruncatedWindowMemoryStorage) Inc(
 		s.counter = 0
 	}
 
-	s.counter++
+	s.counter += tokens
 
 	return s.counter, ctx.Err()
 }

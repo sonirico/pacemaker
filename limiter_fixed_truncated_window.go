@@ -49,7 +49,6 @@ type FixedTruncatedWindowRateLimiter struct {
 // if errors.Is(ErrRateLimitExceeded) {
 // 		<-time.After(ttw) // Wait, or enqueue your request
 // }
-
 func (l *FixedTruncatedWindowRateLimiter) Check(ctx context.Context) (time.Duration, error) {
 	return l.check(ctx, 1)
 }

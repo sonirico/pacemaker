@@ -16,7 +16,7 @@ type testFixedWindowTruncatedStep struct {
 type testFixedWindowTruncated struct {
 	name string
 
-	capacity uint64
+	capacity int64
 
 	rate Rate
 

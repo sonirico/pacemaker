@@ -27,4 +27,5 @@ bin/
 .env
 
 # Debugging leftovers
-.gdb*
+*.gdb*
+*.rdb

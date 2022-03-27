@@ -8,18 +8,18 @@ import (
 )
 
 type fixedWindowStorage interface {
-	Inc(ctx context.Context, deadline time.Time, tokens uint64) (uint64, error)
+	Inc(ctx context.Context, args fixedWindowStorageIncArgs) (int64, error)
 }
 
 type FixedWindowArgs struct {
-	Capacity uint64
+	Capacity int64
 	Rate     Rate
 	Clock    clock
 	DB       fixedWindowStorage
 }
 
 // FixedWindowRateLimiter limits how many requests can be make in a time window. This window is calculated
-// by considering the start of the window the exact same moment the first request came.
+// by considering the start of the window the exact same moment the first request came. E.g:
 // First request time: 2022-02-05 10:23:23
 // Rate limit interval: new window every 10 seconds
 // First request window: from 2022-02-05 10:23:23 to 2022-02-05 10:23:33
@@ -28,24 +28,24 @@ type FixedWindowRateLimiter struct {
 
 	clock clock
 
-	validateTokens func(uint64) uint64
+	validateTokens func(int64) int64
 
 	deadline time.Time
 
 	mu sync.Mutex
 
-	capacity uint64
+	db fixedWindowStorage
+
+	capacity int64
 
 	rateLimitReached bool
-
-	db fixedWindowStorage
 }
 
 func (l *FixedWindowRateLimiter) Check(ctx context.Context) (time.Duration, error) {
 	return l.check(ctx, 1)
 }
 
-func (l *FixedWindowRateLimiter) check(ctx context.Context, tokens uint64) (time.Duration, error) {
+func (l *FixedWindowRateLimiter) check(ctx context.Context, tokens int64) (time.Duration, error) {
 	tokens = l.validateTokens(tokens)
 	if tokens > l.capacity {
 		return 0, ErrTokensGreaterThanCapacity
@@ -85,7 +85,11 @@ func (l *FixedWindowRateLimiter) check(ctx context.Context, tokens uint64) (time
 		return ttw, ErrRateLimitExceeded
 	}
 
-	c, err := l.db.Inc(ctx, l.deadline, tokens)
+	c, err := l.db.Inc(ctx, fixedWindowIncArgs{
+		window: l.deadline,
+		tokens: tokens,
+		ttl:    ttw,
+	})
 
 	if err != nil {
 		// TODO: Make this behaviour configurable. If storage cannot be accessed, do we pass, or do we block...?
@@ -118,22 +122,24 @@ func NewFixedWindowRateLimiter(args FixedWindowArgs) *FixedWindowRateLimiter {
 // servers rate limits
 type FixedWindowMemoryStorage struct {
 	mu       sync.Mutex
-	counter  uint64
+	counter  int64
 	deadline time.Time
+	ttl      time.Duration
 }
 
-func (f *FixedWindowMemoryStorage) Inc(ctx context.Context, deadline time.Time, tokens uint64) (uint64, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+func (s *FixedWindowMemoryStorage) Inc(ctx context.Context, args fixedWindowStorageIncArgs) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	if deadline != f.deadline {
-		f.deadline = deadline
-		f.counter = 0
+	if !s.deadline.Equal(args.Window()) {
+		s.deadline = args.Window()
+		s.counter = 0
 	}
 
-	f.counter += tokens
+	s.counter += args.Tokens()
+	s.ttl = args.TTL()
 
-	return f.counter, ctx.Err()
+	return s.counter, ctx.Err()
 }
 
 // NewFixedWindowMemoryStorage returns a new instance of FixedWindowMemoryStorage

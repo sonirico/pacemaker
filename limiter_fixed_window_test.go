@@ -17,7 +17,7 @@ type testFixedWindowStep struct {
 type testFixedWindow struct {
 	name string
 
-	capacity uint64
+	capacity int64
 
 	rate Rate
 

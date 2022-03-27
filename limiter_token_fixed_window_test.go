@@ -8,7 +8,7 @@ import (
 )
 
 type testTokenFixedWindowStep struct {
-	requestTokens uint64
+	requestTokens int64
 	forwardAfter  time.Duration
 	forwardBefore time.Duration
 	expectedTtw   time.Duration
@@ -18,7 +18,7 @@ type testTokenFixedWindowStep struct {
 type testTokenFixedWindow struct {
 	name string
 
-	capacity uint64
+	capacity int64
 
 	rate Rate
 

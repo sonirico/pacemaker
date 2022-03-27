@@ -10,13 +10,12 @@ import (
 type fixedTruncatedWindowStorage interface {
 	Inc(
 		ctx context.Context,
-		window time.Time,
-		tokens uint64,
-	) (uint64, error)
+		args fixedWindowStorageIncArgs,
+	) (int64, error)
 }
 
 type FixedTruncatedWindowArgs struct {
-	Capacity uint64
+	Capacity int64
 	Rate     Rate
 
 	Clock clock
@@ -32,13 +31,13 @@ type FixedTruncatedWindowArgs struct {
 type FixedTruncatedWindowRateLimiter struct {
 	db             fixedTruncatedWindowStorage
 	clock          clock
-	validateTokens func(uint64) uint64
+	validateTokens func(int64) int64
 
 	mu sync.Mutex
 
 	rate             time.Duration
 	window           time.Time
-	capacity         uint64
+	capacity         int64
 	rateLimitReached bool
 }
 
@@ -53,7 +52,7 @@ func (l *FixedTruncatedWindowRateLimiter) Check(ctx context.Context) (time.Durat
 	return l.check(ctx, 1)
 }
 
-func (l *FixedTruncatedWindowRateLimiter) check(ctx context.Context, tokens uint64) (time.Duration, error) {
+func (l *FixedTruncatedWindowRateLimiter) check(ctx context.Context, tokens int64) (time.Duration, error) {
 	tokens = l.validateTokens(tokens)
 	if tokens > l.capacity {
 		return 0, ErrTokensGreaterThanCapacity
@@ -66,7 +65,7 @@ func (l *FixedTruncatedWindowRateLimiter) check(ctx context.Context, tokens uint
 
 	window := now.Truncate(l.rate)
 
-	if l.window != window {
+	if !l.window.Equal(window) {
 		l.rateLimitReached = false
 		l.window = window
 	}
@@ -77,7 +76,11 @@ func (l *FixedTruncatedWindowRateLimiter) check(ctx context.Context, tokens uint
 		return ttw, ErrRateLimitExceeded
 	}
 
-	c, err := l.db.Inc(ctx, window, tokens)
+	c, err := l.db.Inc(ctx, fixedWindowIncArgs{
+		window: window,
+		tokens: tokens,
+		ttl:    ttw,
+	})
 
 	if err != nil {
 		return 0, err
@@ -109,26 +112,27 @@ func NewFixedTruncatedWindowRateLimiter(
 
 // FixedTruncatedWindowMemoryStorage is an in-memory storage for the rate limit state. Preferred option when testing and
 // working with standalone instances of your program and do not care about it restarting and not being exactly compliant
-// with servers rate limits
+// with the state of rate limits at the server
 type FixedTruncatedWindowMemoryStorage struct {
 	mu             sync.Mutex
 	previousWindow time.Time
-	counter        uint64
+	counter        int64
+	ttl            time.Duration
 }
 
 func (s *FixedTruncatedWindowMemoryStorage) Inc(
 	ctx context.Context,
-	newWindow time.Time,
-	tokens uint64,
-) (uint64, error) {
+	args fixedWindowStorageIncArgs,
+) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.previousWindow != newWindow {
-		s.previousWindow = newWindow
+	if !s.previousWindow.Equal(args.Window()) {
+		s.previousWindow = args.Window()
 		s.counter = 0
 	}
 
-	s.counter += tokens
+	s.counter += args.Tokens()
+	s.ttl = args.TTL()
 
 	return s.counter, ctx.Err()
 }

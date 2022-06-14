@@ -32,8 +32,8 @@ type (
 )
 
 const (
+	try   testMethod = "try"
 	check testMethod = "check"
-	can   testMethod = "can"
 )
 
 func TestNewFixedTruncatedWindowRateLimiter(t *testing.T) {
@@ -45,43 +45,43 @@ func TestNewFixedTruncatedWindowRateLimiter(t *testing.T) {
 			startTime: time.Date(2022, 02, 05, 0, 0, 0, 0, time.UTC),
 			steps: []testFixedWindowTruncatedStep{
 				{
-					method:            can,
+					method:            check,
 					passTime:          0,
 					expectedErr:       nil,
 					expectedFreeSlots: 2,
 				},
 				{
 					passTime:    0,
-					method:      check,
+					method:      try,
 					expectedTtw: 0,
 					expectedErr: nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					passTime:          0,
 					expectedErr:       nil,
 					expectedFreeSlots: 1,
 				},
 				{
 					passTime:    0,
-					method:      check,
+					method:      try,
 					expectedTtw: 0,
 					expectedErr: nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					passTime:          0,
 					expectedErr:       ErrRateLimitExceeded,
 					expectedFreeSlots: 0,
 				},
 				{
 					passTime:    0,
-					method:      check,
+					method:      try,
 					expectedTtw: time.Second * 10,
 					expectedErr: ErrRateLimitExceeded,
 				},
 				{
-					method:            can,
+					method:            check,
 					passTime:          0,
 					expectedErr:       ErrRateLimitExceeded,
 					expectedFreeSlots: 0,
@@ -95,37 +95,37 @@ func TestNewFixedTruncatedWindowRateLimiter(t *testing.T) {
 			startTime: time.Date(2022, 02, 05, 0, 0, 6, 0, time.UTC),
 			steps: []testFixedWindowTruncatedStep{
 				{
-					method:            can,
+					method:            check,
 					passTime:          0,
 					expectedErr:       nil,
 					expectedFreeSlots: 2,
 				},
 				{
-					method:      check,
+					method:      try,
 					passTime:    0,
 					expectedTtw: 0,
 					expectedErr: nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					passTime:          0,
 					expectedErr:       nil,
 					expectedFreeSlots: 1,
 				},
 				{
-					method:      check,
+					method:      try,
 					passTime:    0,
 					expectedTtw: 0,
 					expectedErr: nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					passTime:          0,
 					expectedErr:       ErrRateLimitExceeded,
 					expectedFreeSlots: 0,
 				},
 				{
-					method:      check,
+					method:      try,
 					passTime:    0,
 					expectedTtw: time.Second * 4,
 					expectedErr: ErrRateLimitExceeded,
@@ -139,36 +139,36 @@ func TestNewFixedTruncatedWindowRateLimiter(t *testing.T) {
 			startTime: time.Date(2022, 02, 05, 0, 0, 8, 0, time.UTC),
 			steps: []testFixedWindowTruncatedStep{
 				{
-					method:      check,
+					method:      try,
 					passTime:    time.Second,
 					expectedTtw: 0,
 					expectedErr: nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					passTime:          0,
 					expectedErr:       nil,
 					expectedFreeSlots: 1,
 				},
 				{
-					method:      check,
+					method:      try,
 					passTime:    time.Second * 2, // 2022-02-05 00:00:11
 					expectedTtw: 0,
 					expectedErr: nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					passTime:          0,
 					expectedErr:       nil,
 					expectedFreeSlots: 2,
 				},
 				{
-					method:      check,
+					method:      try,
 					passTime:    0,
 					expectedTtw: 0,
 					expectedErr: nil,
 				}, {
-					method:            can,
+					method:            check,
 					passTime:          0,
 					expectedErr:       nil,
 					expectedFreeSlots: 1,
@@ -182,70 +182,70 @@ func TestNewFixedTruncatedWindowRateLimiter(t *testing.T) {
 			startTime: time.Date(2022, 02, 05, 0, 0, 8, 0, time.UTC),
 			steps: []testFixedWindowTruncatedStep{
 				{
-					method:            can,
+					method:            check,
 					passTime:          0,
 					expectedErr:       nil,
 					expectedFreeSlots: 2,
 				},
 				{
-					method:      check,
+					method:      try,
 					passTime:    0,
 					expectedTtw: 0,
 					expectedErr: nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					passTime:          0,
 					expectedErr:       nil,
 					expectedFreeSlots: 1,
 				},
 				{
-					method:      check,
+					method:      try,
 					passTime:    0,
 					expectedTtw: 0,
 					expectedErr: nil,
 				},
 				// Rate Limit is reached and 1 second passes...
 				{
-					method:            can,
+					method:            check,
 					passTime:          0,
 					expectedErr:       ErrRateLimitExceeded,
 					expectedFreeSlots: 0,
 				},
 				{
-					method:      check,
+					method:      try,
 					passTime:    time.Second,
 					expectedTtw: time.Second * 2,
 					expectedErr: ErrRateLimitExceeded,
 				},
 				{
-					method:            can,
+					method:            check,
 					passTime:          0,
 					expectedErr:       ErrRateLimitExceeded,
 					expectedFreeSlots: 0,
 				},
 				// Rate limit is still held. Moving 2 seconds and getting into next window
 				{
-					method:      check,
+					method:      try,
 					passTime:    time.Second * 2,
 					expectedTtw: time.Second,
 					expectedErr: ErrRateLimitExceeded,
 				},
 				{
-					method:            can,
+					method:            check,
 					passTime:          0,
 					expectedErr:       nil,
 					expectedFreeSlots: 2,
 				},
-				// Requests can be made again
+				// Requests check be made again
 				{
-					method:      check,
+					method:      try,
 					passTime:    0,
 					expectedTtw: 0,
 					expectedErr: nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					passTime:          0,
 					expectedErr:       nil,
 					expectedFreeSlots: 1,
@@ -267,8 +267,8 @@ func TestNewFixedTruncatedWindowRateLimiter(t *testing.T) {
 
 			for i, step := range test.steps {
 				switch step.method {
-				case check:
-					ttw, err := rl.Check(ctx)
+				case try:
+					ttw, err := rl.Try(ctx)
 
 					if !errors.Is(err, step.expectedErr) {
 						t.Errorf("step(%d) unexpected error, want %v, have %v",
@@ -280,8 +280,8 @@ func TestNewFixedTruncatedWindowRateLimiter(t *testing.T) {
 							i+1, step.expectedTtw, ttw)
 					}
 
-				case can:
-					free, err := rl.Can(ctx)
+				case check:
+					free, err := rl.Check(ctx)
 					if !errors.Is(err, step.expectedErr) {
 						t.Errorf("step(%d) unexpected error, want %v, have %v",
 							i+1, step.expectedErr, err)

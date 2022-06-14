@@ -18,7 +18,7 @@ type FixedWindowArgs struct {
 	DB       fixedWindowStorage
 }
 
-// FixedWindowRateLimiter limits how many requests can be make in a time window. This window is calculated
+// FixedWindowRateLimiter limits how many requests check be make in a time window. This window is calculated
 // by considering the start of the window the exact same moment the first request came. E.g:
 // First request time: 2022-02-05 10:23:23
 // Rate limit interval: new window every 10 seconds
@@ -41,15 +41,15 @@ type FixedWindowRateLimiter struct {
 	rateLimitReached bool
 }
 
-func (l *FixedWindowRateLimiter) Check(ctx context.Context) (time.Duration, error) {
+func (l *FixedWindowRateLimiter) Try(ctx context.Context) (time.Duration, error) {
+	return l.try(ctx, 1)
+}
+
+func (l *FixedWindowRateLimiter) Check(ctx context.Context) (int64, error) {
 	return l.check(ctx, 1)
 }
 
-func (l *FixedWindowRateLimiter) Can(ctx context.Context) (int64, error) {
-	return l.can(ctx, 1)
-}
-
-func (l *FixedWindowRateLimiter) can(ctx context.Context, tokens int64) (int64, error) {
+func (l *FixedWindowRateLimiter) check(ctx context.Context, tokens int64) (int64, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -64,7 +64,7 @@ func (l *FixedWindowRateLimiter) can(ctx context.Context, tokens int64) (int64, 
 	c, err := l.db.Get(ctx, l.deadline)
 
 	if err != nil {
-		// TODO: Make this behaviour configurable. If storage cannot be accessed, do we pass, or do we block...?
+		// TODO: Make this behaviour configurable. If storage checknot be accessed, do we pass, or do we block...?
 		return 0, err
 	}
 
@@ -82,7 +82,7 @@ func (l *FixedWindowRateLimiter) can(ctx context.Context, tokens int64) (int64, 
 	return 0, ErrRateLimitExceeded
 }
 
-func (l *FixedWindowRateLimiter) check(ctx context.Context, tokens int64) (time.Duration, error) {
+func (l *FixedWindowRateLimiter) try(ctx context.Context, tokens int64) (time.Duration, error) {
 	tokens = l.validateTokens(tokens)
 	if tokens > l.capacity {
 		return 0, ErrTokensGreaterThanCapacity
@@ -108,7 +108,7 @@ func (l *FixedWindowRateLimiter) check(ctx context.Context, tokens int64) (time.
 	})
 
 	if err != nil {
-		// TODO: Make this behaviour configurable. If storage cannot be accessed, do we pass, or do we block...?
+		// TODO: Make this behaviour configurable. If storage checknot be accessed, do we pass, or do we block...?
 		return 0, err
 	}
 

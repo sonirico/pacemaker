@@ -41,7 +41,7 @@ func main() {
 		})
 
 	for i := 0; i < 100; i++ {
-		ttw, err := rateLimiter.Check(ctx)
+		ttw, err := rateLimiter.Try(ctx)
 		log.Println(ttw, err)
 		time.Sleep(time.Second)
 	}

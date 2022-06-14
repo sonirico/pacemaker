@@ -26,7 +26,7 @@ type FixedTruncatedWindowArgs struct {
 	DB fixedTruncatedWindowStorage
 }
 
-// FixedTruncatedWindowRateLimiter limits how many requests can be make in a time window. This window is calculated
+// FixedTruncatedWindowRateLimiter limits how many requests check be make in a time window. This window is calculated
 // by truncating the first request's time of to the limit rate in order to adjust to real time passing. E.g:
 // First request time: 2022-02-05 10:23:23
 // Rate limit interval: new window every 10 seconds
@@ -44,24 +44,24 @@ type FixedTruncatedWindowRateLimiter struct {
 	rateLimitReached bool
 }
 
-// Check returns how much time to wait to perform the request and an error indicating whether the rate limit
+// Try returns how much time to wait to perform the request and an error indicating whether the rate limit
 // was exhausted or any kind or error happened when updating the backend. Typically, you would do
 //
-// ttw, err := limiter.Check(ctx)
+// ttw, err := limiter.Try(ctx)
 // if errors.Is(ErrRateLimitExceeded) {
 // 		<-time.After(ttw) // Wait, or enqueue your request
 // }
-func (l *FixedTruncatedWindowRateLimiter) Check(ctx context.Context) (time.Duration, error) {
+func (l *FixedTruncatedWindowRateLimiter) Try(ctx context.Context) (time.Duration, error) {
+	return l.try(ctx, 1)
+}
+
+// Check return how many free slots remain without increasing the token counter. This testMethod is typically used
+// to assert there are available requests prior try an increase the counter
+func (l *FixedTruncatedWindowRateLimiter) Check(ctx context.Context) (int64, error) {
 	return l.check(ctx, 1)
 }
 
-// Can return how many free slots remain without increasing the token counter. This testMethod is typically used
-// to assert there are available requests prior try an increase the counter
-func (l *FixedTruncatedWindowRateLimiter) Can(ctx context.Context) (int64, error) {
-	return l.can(ctx, 1)
-}
-
-func (l *FixedTruncatedWindowRateLimiter) check(ctx context.Context, tokens int64) (time.Duration, error) {
+func (l *FixedTruncatedWindowRateLimiter) try(ctx context.Context, tokens int64) (time.Duration, error) {
 	tokens = l.validateTokens(tokens)
 	if tokens > l.capacity {
 		return 0, ErrTokensGreaterThanCapacity
@@ -103,7 +103,7 @@ func (l *FixedTruncatedWindowRateLimiter) check(ctx context.Context, tokens int6
 	return 0, nil
 }
 
-func (l *FixedTruncatedWindowRateLimiter) can(ctx context.Context, tokens int64) (int64, error) {
+func (l *FixedTruncatedWindowRateLimiter) check(ctx context.Context, tokens int64) (int64, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 

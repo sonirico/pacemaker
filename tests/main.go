@@ -33,7 +33,7 @@ func main() {
 	)
 
 	for i := 0; i < 100; i++ {
-		ttw, err := rateLimiter.Check(ctx, 100)
+		ttw, err := rateLimiter.Try(ctx, 100)
 		log.Println(ttw, err)
 		time.Sleep(time.Second)
 	}

@@ -38,49 +38,49 @@ func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 			startTime: time.Date(2022, 02, 05, 0, 0, 0, 0, time.UTC),
 			steps: []testTokenFixedWindowStep{
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 50,
 					expectedErr:       nil,
 					requestTokens:     25,
 				},
 				{
-					method:        check,
+					method:        try,
 					forwardAfter:  0,
 					expectedTtw:   0,
 					expectedErr:   nil,
 					requestTokens: 25, // 25
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 25,
 					expectedErr:       nil,
 					requestTokens:     25,
 				},
 				{
-					method:        check,
+					method:        try,
 					forwardAfter:  0,
 					expectedTtw:   0,
 					expectedErr:   nil,
 					requestTokens: 24, // 49
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 1,
 					expectedErr:       ErrRateLimitExceeded,
 					requestTokens:     25,
 				},
 				{
-					method:        check,
+					method:        try,
 					forwardAfter:  0,
 					expectedTtw:   time.Second * 10,
 					expectedErr:   ErrRateLimitExceeded,
 					requestTokens: 3, // 52 -> Rate limit!
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 0,
 					expectedErr:       ErrRateLimitExceeded,
@@ -95,56 +95,56 @@ func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 			startTime: time.Date(2022, 02, 05, 0, 0, 6, 0, time.UTC),
 			steps: []testTokenFixedWindowStep{
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 20,
 					expectedErr:       nil,
 					requestTokens:     11,
 				},
 				{
-					method:        check,
+					method:        try,
 					forwardAfter:  0,
 					expectedTtw:   0,
 					expectedErr:   nil,
 					requestTokens: 11, // 11
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 9,
 					expectedErr:       nil,
 					requestTokens:     3,
 				},
 				{
-					method:        check,
+					method:        try,
 					forwardAfter:  0,
 					expectedTtw:   0,
 					expectedErr:   nil,
 					requestTokens: 3, // 14
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 6,
 					expectedErr:       nil,
 					requestTokens:     3,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 6,
 					expectedErr:       ErrRateLimitExceeded,
 					requestTokens:     20,
 				},
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 7, // 21 -> Rate Limit!
 					forwardAfter:  0,
 					expectedTtw:   time.Second * 4,
 					expectedErr:   ErrRateLimitExceeded,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 0,
 					expectedErr:       ErrRateLimitExceeded,
@@ -159,49 +159,49 @@ func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 			startTime: time.Date(2022, 02, 05, 0, 0, 8, 0, time.UTC),
 			steps: []testTokenFixedWindowStep{
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 2,
 					expectedErr:       nil,
 					requestTokens:     1,
 				},
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 1, // 1
 					forwardAfter:  time.Second,
 					expectedTtw:   0,
 					expectedErr:   nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 1,
 					expectedErr:       nil,
 					requestTokens:     1,
 				},
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 1,               // 2
 					forwardAfter:  time.Second * 2, // 2022-02-05 00:00:11
 					expectedTtw:   0,
 					expectedErr:   nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 2,
 					expectedErr:       nil,
 					requestTokens:     1,
 				},
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 2, // 2
 					forwardAfter:  0,
 					expectedTtw:   0,
 					expectedErr:   nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 0,
 					expectedErr:       ErrRateLimitExceeded,
@@ -216,35 +216,35 @@ func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 			startTime: time.Date(2022, 02, 05, 0, 0, 8, 0, time.UTC),
 			steps: []testTokenFixedWindowStep{
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 10,
 					expectedErr:       nil,
 					requestTokens:     3,
 				},
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 3, // 3
 					forwardAfter:  0,
 					expectedTtw:   0,
 					expectedErr:   nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 7,
 					expectedErr:       nil,
 					requestTokens:     5,
 				},
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 5, // 8
 					forwardAfter:  0,
 					expectedTtw:   0,
 					expectedErr:   nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 2,
 					expectedErr:       ErrRateLimitExceeded,
@@ -252,14 +252,14 @@ func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 				},
 				// Rate Limit is reached and 1 second passes...
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 3, // 11
 					forwardAfter:  time.Second,
 					expectedTtw:   time.Second * 2,
 					expectedErr:   ErrRateLimitExceeded,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 0,
 					expectedErr:       ErrRateLimitExceeded,
@@ -267,29 +267,29 @@ func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 				},
 				// Rate limit is still held. Moving 2 seconds and getting into next window
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 3, // 11
 					forwardAfter:  time.Second * 2,
 					expectedTtw:   time.Second,
 					expectedErr:   ErrRateLimitExceeded,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 10,
 					expectedErr:       nil,
 					requestTokens:     1,
 				},
-				// Requests can be made again
+				// Requests check be made again
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 3, // 3
 					forwardAfter:  0,
 					expectedTtw:   0,
 					expectedErr:   nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 7,
 					expectedErr:       nil,
@@ -316,8 +316,8 @@ func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 				clock.Forward(step.forwardBefore)
 
 				switch step.method {
-				case check:
-					ttw, err := rl.Check(ctx, step.requestTokens)
+				case try:
+					ttw, err := rl.Try(ctx, step.requestTokens)
 
 					if !errors.Is(err, step.expectedErr) {
 						t.Errorf("step(%d) unexpected error, want %v, have %v",
@@ -329,8 +329,8 @@ func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 							i+1, step.expectedTtw, ttw)
 					}
 
-				case can:
-					free, err := rl.Can(ctx, step.requestTokens)
+				case check:
+					free, err := rl.Check(ctx, step.requestTokens)
 					if !errors.Is(err, step.expectedErr) {
 						t.Errorf("step(%d) unexpected error, want %v, have %v",
 							i+1, step.expectedErr, err)
@@ -357,14 +357,14 @@ func TestNewTokenFixedWindowRateLimiter_WindowStartsWithFirstRequest(t *testing.
 			startTime: time.Date(2022, 02, 05, 0, 0, 23, 0, time.UTC),
 			steps: []testTokenFixedWindowStep{
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 2,
 					expectedErr:       nil,
 					requestTokens:     1,
 				},
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 1,
 					forwardAfter:  0,
 					expectedTtw:   0,
@@ -372,28 +372,28 @@ func TestNewTokenFixedWindowRateLimiter_WindowStartsWithFirstRequest(t *testing.
 				},
 
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 1,
 					expectedErr:       nil,
 					requestTokens:     1,
 				},
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 1,
 					forwardAfter:  0,
 					expectedTtw:   0,
 					expectedErr:   nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 0,
 					expectedErr:       ErrRateLimitExceeded,
 					requestTokens:     1,
 				},
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 1,
 					forwardAfter:  0,
 					expectedTtw:   time.Second * 10,
@@ -408,56 +408,56 @@ func TestNewTokenFixedWindowRateLimiter_WindowStartsWithFirstRequest(t *testing.
 			startTime: time.Date(2022, 02, 05, 0, 0, 23, 0, time.UTC),
 			steps: []testTokenFixedWindowStep{
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 2,
 					expectedErr:       nil,
 					requestTokens:     1,
 				},
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 1,               // 1
 					forwardAfter:  time.Second * 3, // 26''
 					expectedTtw:   0,
 					expectedErr:   nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 1,
 					expectedErr:       nil,
 					requestTokens:     1,
 				},
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 1,               // 2
 					forwardAfter:  time.Second * 6, // 32''
 					expectedTtw:   0,
 					expectedErr:   nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 0,
 					expectedErr:       ErrRateLimitExceeded,
 					requestTokens:     1,
 				},
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 1, // 3 -> Rate Limit!
 					forwardAfter:  0,
 					expectedTtw:   time.Second * 1,
 					expectedErr:   ErrRateLimitExceeded,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 0,
 					expectedErr:       ErrRateLimitExceeded,
 					requestTokens:     1,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      time.Second,
 					expectedFreeSlots: 0,
 					expectedErr:       ErrRateLimitExceeded,
@@ -465,14 +465,14 @@ func TestNewTokenFixedWindowRateLimiter_WindowStartsWithFirstRequest(t *testing.
 				},
 				{
 					// 33'' no rate limit should apply
-					method:        check,
+					method:        try,
 					requestTokens: 1, // 1
 					forwardAfter:  0,
 					expectedTtw:   0,
 					expectedErr:   nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 1,
 					expectedErr:       nil,
@@ -487,49 +487,49 @@ func TestNewTokenFixedWindowRateLimiter_WindowStartsWithFirstRequest(t *testing.
 			startTime: time.Date(2022, 02, 05, 0, 0, 8, 0, time.UTC),
 			steps: []testTokenFixedWindowStep{
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 5,
 					expectedErr:       nil,
 					requestTokens:     1,
 				},
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 1, // 1
 					forwardAfter:  time.Second,
 					expectedTtw:   0,
 					expectedErr:   nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 4,
 					expectedErr:       nil,
 					requestTokens:     1,
 				},
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 3,               // 4
 					forwardAfter:  time.Second * 9, // 2022-02-05 00:00:18
 					expectedTtw:   0,
 					expectedErr:   nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 5, // 5 - 1 - 3
 					expectedErr:       nil,
 					requestTokens:     5,
 				},
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 5,
 					forwardAfter:  0,
 					expectedTtw:   0,
 					expectedErr:   nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 0,
 					expectedErr:       ErrRateLimitExceeded,
@@ -544,35 +544,35 @@ func TestNewTokenFixedWindowRateLimiter_WindowStartsWithFirstRequest(t *testing.
 			startTime: time.Date(2022, 02, 05, 0, 0, 8, 0, time.UTC),
 			steps: []testTokenFixedWindowStep{
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 6,
 					expectedErr:       nil,
 					requestTokens:     2,
 				},
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 2, // 2
 					forwardAfter:  0,
 					expectedTtw:   0,
 					expectedErr:   nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 4,
 					expectedErr:       nil,
 					requestTokens:     2,
 				},
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 2, // 4
 					forwardAfter:  0,
 					expectedTtw:   0,
 					expectedErr:   nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 0,
 					expectedErr:       ErrRateLimitExceeded,
@@ -580,14 +580,14 @@ func TestNewTokenFixedWindowRateLimiter_WindowStartsWithFirstRequest(t *testing.
 				},
 				// Rate Limit is reached and 1 second passes...
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 3, // 7
 					forwardAfter:  time.Second,
 					expectedTtw:   time.Second * 10,
 					expectedErr:   ErrRateLimitExceeded,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 0,
 					expectedErr:       ErrRateLimitExceeded,
@@ -595,29 +595,29 @@ func TestNewTokenFixedWindowRateLimiter_WindowStartsWithFirstRequest(t *testing.
 				},
 				// Rate limit is still held. Moving 2 seconds and getting into next window
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 3, // 7
 					forwardAfter:  time.Second * 11,
 					expectedTtw:   time.Second * 9,
 					expectedErr:   ErrRateLimitExceeded,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 6,
 					expectedErr:       nil,
 					requestTokens:     3,
 				},
-				// Requests can be made again
+				// Requests check be made again
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 3, // 3
 					forwardAfter:  0,
 					expectedTtw:   0,
 					expectedErr:   nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 3,
 					expectedErr:       nil,
@@ -632,21 +632,21 @@ func TestNewTokenFixedWindowRateLimiter_WindowStartsWithFirstRequest(t *testing.
 			startTime: time.Date(2022, 02, 05, 0, 0, 8, 0, time.UTC),
 			steps: []testTokenFixedWindowStep{
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 2,
 					expectedErr:       nil,
 					requestTokens:     1,
 				},
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 1, // 1
 					forwardAfter:  0,
 					expectedTtw:   0,
 					expectedErr:   nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 1,
 					expectedErr:       nil,
@@ -654,14 +654,14 @@ func TestNewTokenFixedWindowRateLimiter_WindowStartsWithFirstRequest(t *testing.
 				},
 				// Rate Limit is not yet reached, and 30'' pass...
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 1, // 2
 					forwardAfter:  time.Second * 30,
 					expectedTtw:   0,
 					expectedErr:   nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 2,
 					expectedErr:       nil,
@@ -669,35 +669,35 @@ func TestNewTokenFixedWindowRateLimiter_WindowStartsWithFirstRequest(t *testing.
 				},
 				// Force rate limit by making 3 consecutive requests
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 1, // 1
 					forwardAfter:  time.Second,
 					expectedTtw:   0,
 					expectedErr:   nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 1,
 					expectedErr:       nil,
 					requestTokens:     1,
 				},
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 1, // 2
 					forwardAfter:  time.Second,
 					expectedTtw:   0,
 					expectedErr:   nil,
 				},
 				{
-					method:            can,
+					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 0,
 					expectedErr:       ErrRateLimitExceeded,
 					requestTokens:     1,
 				},
 				{
-					method:        check,
+					method:        try,
 					requestTokens: 1, // 3 -> Rate limit!
 					forwardAfter:  0,
 					expectedTtw:   time.Second * 8, // (10 - 2)
@@ -724,8 +724,8 @@ func TestNewTokenFixedWindowRateLimiter_WindowStartsWithFirstRequest(t *testing.
 				clock.Forward(step.forwardBefore)
 
 				switch step.method {
-				case check:
-					ttw, err := rl.Check(ctx, step.requestTokens)
+				case try:
+					ttw, err := rl.Try(ctx, step.requestTokens)
 
 					if !errors.Is(err, step.expectedErr) {
 						t.Errorf("step(%d) unexpected error, want %v, have %v",
@@ -737,8 +737,8 @@ func TestNewTokenFixedWindowRateLimiter_WindowStartsWithFirstRequest(t *testing.
 							i+1, step.expectedTtw, ttw)
 					}
 
-				case can:
-					free, err := rl.Can(ctx, step.requestTokens)
+				case check:
+					free, err := rl.Check(ctx, step.requestTokens)
 					if !errors.Is(err, step.expectedErr) {
 						t.Errorf("step(%d) unexpected error, want %v, have %v",
 							i+1, step.expectedErr, err)

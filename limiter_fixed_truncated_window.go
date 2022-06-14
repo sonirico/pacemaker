@@ -2,7 +2,6 @@ package pacemaker
 
 import (
 	"context"
-	"github.com/sonirico/pacemaker/internal"
 	"sync"
 	"time"
 )
@@ -11,6 +10,10 @@ type fixedTruncatedWindowStorage interface {
 	Inc(
 		ctx context.Context,
 		args fixedWindowStorageIncArgs,
+	) (int64, error)
+	Get(
+		ctx context.Context,
+		window time.Time,
 	) (int64, error)
 }
 
@@ -50,6 +53,12 @@ type FixedTruncatedWindowRateLimiter struct {
 // }
 func (l *FixedTruncatedWindowRateLimiter) Check(ctx context.Context) (time.Duration, error) {
 	return l.check(ctx, 1)
+}
+
+// Can return how many free slots remain without increasing the token counter. This testMethod is typically used
+// to assert there are available requests prior try an increase the counter
+func (l *FixedTruncatedWindowRateLimiter) Can(ctx context.Context) (int64, error) {
+	return l.can(ctx, 1)
 }
 
 func (l *FixedTruncatedWindowRateLimiter) check(ctx context.Context, tokens int64) (time.Duration, error) {
@@ -94,6 +103,45 @@ func (l *FixedTruncatedWindowRateLimiter) check(ctx context.Context, tokens int6
 	return 0, nil
 }
 
+func (l *FixedTruncatedWindowRateLimiter) can(ctx context.Context, tokens int64) (int64, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	now := l.clock.Now()
+
+	window := now.Truncate(l.rate)
+
+	if !l.window.Equal(window) {
+		// new window so no rate Limit
+		l.rateLimitReached = false
+		l.window = window
+		return l.capacity, nil
+	}
+
+	if l.rateLimitReached {
+		return 0, ErrRateLimitExceeded
+	}
+
+	c, err := l.db.Get(ctx, window)
+
+	if err != nil {
+		return 0, err
+	}
+
+	if c >= l.capacity {
+		l.rateLimitReached = true
+		return l.capacity - c, ErrRateLimitExceeded
+	}
+
+	free := l.capacity - c - tokens
+
+	if free >= 0 {
+		return l.capacity - c, nil
+	}
+
+	return l.capacity - c, ErrRateLimitExceeded
+}
+
 func (l *FixedTruncatedWindowRateLimiter) fixedWindow() {}
 
 // NewFixedTruncatedWindowRateLimiter returns a new instance of FixedTruncatedWindowRateLimiter from struct of args
@@ -106,7 +154,7 @@ func NewFixedTruncatedWindowRateLimiter(
 		clock:            args.Clock,
 		db:               args.DB,
 		rateLimitReached: false,
-		validateTokens:   internal.AtLeast(1),
+		validateTokens:   AtLeast(1),
 	}
 }
 
@@ -133,6 +181,20 @@ func (s *FixedTruncatedWindowMemoryStorage) Inc(
 
 	s.counter += args.Tokens()
 	s.ttl = args.TTL()
+
+	return s.counter, ctx.Err()
+}
+
+func (s *FixedTruncatedWindowMemoryStorage) Get(
+	ctx context.Context,
+	window time.Time,
+) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.previousWindow.Equal(window) {
+		s.previousWindow = window
+		s.counter = 0
+	}
 
 	return s.counter, ctx.Err()
 }

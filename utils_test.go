@@ -1,4 +1,4 @@
-package internal
+package pacemaker
 
 import "testing"
 

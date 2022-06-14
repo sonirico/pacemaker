@@ -2,16 +2,18 @@ package pacemaker
 
 import (
 	"context"
-	"reflect"
+	"errors"
 	"testing"
 	"time"
 )
 
 type testFixedWindowStep struct {
+	method testMethod
 	// passTime represents how much time passed after this request was made
-	passTime    time.Duration
-	expectedTtw time.Duration
-	expectedErr error
+	passTime          time.Duration
+	expectedTtw       time.Duration
+	expectedErr       error
+	expectedFreeSlots int64
 }
 
 type testFixedWindow struct {
@@ -35,19 +37,52 @@ func TestNewFixedWindowRateLimiter(t *testing.T) {
 			startTime: time.Date(2022, 02, 05, 0, 0, 23, 0, time.UTC),
 			steps: []testFixedWindowStep{
 				{
+					method:            can,
+					passTime:          0,
+					expectedFreeSlots: 2,
+					expectedErr:       nil,
+				},
+				{
+					method:      check,
 					passTime:    0,
 					expectedTtw: 0,
 					expectedErr: nil,
 				},
 				{
+					method:            can,
+					passTime:          0,
+					expectedFreeSlots: 1,
+					expectedErr:       nil,
+				},
+				{
+					method:      check,
 					passTime:    0,
 					expectedTtw: 0,
 					expectedErr: nil,
 				},
 				{
+					method:            can,
+					passTime:          0,
+					expectedFreeSlots: 0,
+					expectedErr:       ErrRateLimitExceeded,
+				},
+				{
+					method:      check,
 					passTime:    0,
 					expectedTtw: time.Second * 10,
 					expectedErr: ErrRateLimitExceeded,
+				},
+				{
+					method:            can,
+					passTime:          time.Second * 11,
+					expectedFreeSlots: 2,
+					expectedErr:       nil,
+				},
+				{
+					method:            can,
+					passTime:          0,
+					expectedFreeSlots: 2,
+					expectedErr:       nil,
 				},
 			},
 		},
@@ -58,25 +93,59 @@ func TestNewFixedWindowRateLimiter(t *testing.T) {
 			startTime: time.Date(2022, 02, 05, 0, 0, 23, 0, time.UTC),
 			steps: []testFixedWindowStep{
 				{
+					method:            can,
+					passTime:          0,
+					expectedFreeSlots: 2,
+					expectedErr:       nil,
+				},
+				{
+					method:      check,
 					passTime:    time.Second * 3, // 26''
 					expectedTtw: 0,
 					expectedErr: nil,
 				},
 				{
+					method:            can,
+					passTime:          0,
+					expectedFreeSlots: 1,
+					expectedErr:       nil,
+				},
+				{
+					method:      check,
 					passTime:    time.Second * 6, // 32''
 					expectedTtw: 0,
 					expectedErr: nil,
 				},
 				{
+					method:            can,
+					passTime:          0,
+					expectedFreeSlots: 0,
+					expectedErr:       ErrRateLimitExceeded,
+				},
+				{
+					method:      check,
 					passTime:    time.Second * 1, // 33''
 					expectedTtw: time.Second * 1,
 					expectedErr: ErrRateLimitExceeded,
 				},
 				{
+					method:            can,
+					passTime:          0,
+					expectedFreeSlots: 2,
+					expectedErr:       nil,
+				},
+				{
 					// 33'' no rate limit should apply
+					method:      check,
 					passTime:    0,
 					expectedTtw: 0,
 					expectedErr: nil,
+				},
+				{
+					method:            can,
+					passTime:          0,
+					expectedFreeSlots: 1,
+					expectedErr:       nil,
 				},
 			},
 		},
@@ -87,19 +156,46 @@ func TestNewFixedWindowRateLimiter(t *testing.T) {
 			startTime: time.Date(2022, 02, 05, 0, 0, 8, 0, time.UTC),
 			steps: []testFixedWindowStep{
 				{
+					method:            can,
+					passTime:          0,
+					expectedFreeSlots: 2,
+					expectedErr:       nil,
+				},
+				{
+					method:      check,
 					passTime:    time.Second,
 					expectedTtw: 0,
 					expectedErr: nil,
 				},
 				{
+					method:            can,
+					passTime:          0,
+					expectedFreeSlots: 1,
+					expectedErr:       nil,
+				},
+				{
+					method:      check,
 					passTime:    time.Second * 9, // 2022-02-05 00:00:18
 					expectedTtw: 0,
 					expectedErr: nil,
 				},
 				{
+					method:            can,
+					passTime:          0,
+					expectedFreeSlots: 2,
+					expectedErr:       nil,
+				},
+				{
+					method:      check,
 					passTime:    0,
 					expectedTtw: 0,
 					expectedErr: nil,
+				},
+				{
+					method:            can,
+					passTime:          0,
+					expectedFreeSlots: 1,
+					expectedErr:       nil,
 				},
 			},
 		},
@@ -110,32 +206,73 @@ func TestNewFixedWindowRateLimiter(t *testing.T) {
 			startTime: time.Date(2022, 02, 05, 0, 0, 8, 0, time.UTC),
 			steps: []testFixedWindowStep{
 				{
+					method:            can,
+					passTime:          0,
+					expectedFreeSlots: 2,
+					expectedErr:       nil,
+				},
+				{
+					method:      check,
 					passTime:    0,
 					expectedTtw: 0,
 					expectedErr: nil,
 				},
 				{
+					method:            can,
+					passTime:          0,
+					expectedFreeSlots: 1,
+					expectedErr:       nil,
+				},
+				{
+					method:      check,
 					passTime:    0,
 					expectedTtw: 0,
 					expectedErr: nil,
+				},
+				{
+					method:            can,
+					passTime:          0,
+					expectedFreeSlots: 0,
+					expectedErr:       ErrRateLimitExceeded,
 				},
 				// Rate Limit is reached and 1 second passes...
 				{
+					method:      check,
 					passTime:    time.Second,
 					expectedTtw: time.Second * 10,
 					expectedErr: ErrRateLimitExceeded,
 				},
+				{
+					method:            can,
+					passTime:          0,
+					expectedFreeSlots: 0,
+					expectedErr:       ErrRateLimitExceeded,
+				},
 				// Rate limit is still held. Moving 2 seconds and getting into next window
 				{
+					method:      check,
 					passTime:    time.Second * 11,
 					expectedTtw: time.Second * 9,
 					expectedErr: ErrRateLimitExceeded,
 				},
+				{
+					method:            can,
+					passTime:          0,
+					expectedFreeSlots: 2,
+					expectedErr:       nil,
+				},
 				// Requests can be made again
 				{
+					method:      check,
 					passTime:    0,
 					expectedTtw: 0,
 					expectedErr: nil,
+				},
+				{
+					method:            can,
+					passTime:          0,
+					expectedFreeSlots: 1,
+					expectedErr:       nil,
 				},
 			},
 		},
@@ -146,31 +283,72 @@ func TestNewFixedWindowRateLimiter(t *testing.T) {
 			startTime: time.Date(2022, 02, 05, 0, 0, 8, 0, time.UTC),
 			steps: []testFixedWindowStep{
 				{
+					method:            can,
+					passTime:          0,
+					expectedFreeSlots: 2,
+					expectedErr:       nil,
+				},
+				{
+					method:      check,
 					passTime:    0,
 					expectedTtw: 0,
 					expectedErr: nil,
 				},
+				{
+					method:            can,
+					passTime:          0,
+					expectedFreeSlots: 1,
+					expectedErr:       nil,
+				},
 				// Rate Limit is not yet reached, and 30'' pass...
 				{
+					method:      check,
 					passTime:    time.Second * 30,
 					expectedTtw: 0,
 					expectedErr: nil,
 				},
+				{
+					method:            can,
+					passTime:          0,
+					expectedFreeSlots: 2,
+					expectedErr:       nil,
+				},
 				// Force rate limit by making 3 consecutive requests
 				{
+					method:      check,
 					passTime:    time.Second,
 					expectedTtw: 0,
 					expectedErr: nil,
 				},
 				{
+					method:            can,
+					passTime:          0,
+					expectedFreeSlots: 1,
+					expectedErr:       nil,
+				},
+				{
+					method:      check,
 					passTime:    time.Second,
 					expectedTtw: 0,
 					expectedErr: nil,
 				},
 				{
+					method:            can,
+					passTime:          0,
+					expectedFreeSlots: 0,
+					expectedErr:       ErrRateLimitExceeded,
+				},
+				{
+					method:      check,
 					passTime:    0,
 					expectedTtw: time.Second * 8, // (10 - 2)
 					expectedErr: ErrRateLimitExceeded,
+				},
+				{
+					method:            can,
+					passTime:          0,
+					expectedFreeSlots: 0,
+					expectedErr:       ErrRateLimitExceeded,
 				},
 			},
 		},
@@ -188,16 +366,31 @@ func TestNewFixedWindowRateLimiter(t *testing.T) {
 			})
 
 			for i, step := range test.steps {
-				ttw, err := rl.Check(ctx)
+				switch step.method {
+				case check:
+					ttw, err := rl.Check(ctx)
 
-				if !reflect.DeepEqual(err, step.expectedErr) {
-					t.Errorf("step(%d) unexpected error, want %v, have %v",
-						i+1, step.expectedErr, err)
-				}
+					if !errors.Is(err, step.expectedErr) {
+						t.Errorf("step(%d) unexpected error, want %v, have %v",
+							i+1, step.expectedErr, err)
+					}
 
-				if ttw != step.expectedTtw {
-					t.Errorf("step(%d) unexpected time to wait, want %v, have %v",
-						i+1, step.expectedTtw, ttw)
+					if ttw != step.expectedTtw {
+						t.Errorf("step(%d) unexpected time to wait, want %v, have %v",
+							i+1, step.expectedTtw, ttw)
+					}
+
+				case can:
+					free, err := rl.Can(ctx)
+					if !errors.Is(err, step.expectedErr) {
+						t.Errorf("step(%d) unexpected error, want %v, have %v",
+							i+1, step.expectedErr, err)
+					}
+
+					if free != step.expectedFreeSlots {
+						t.Errorf("step(%d) unexpected free slots, want %d, have %d",
+							i+1, step.expectedFreeSlots, free)
+					}
 				}
 
 				clock.Forward(step.passTime)

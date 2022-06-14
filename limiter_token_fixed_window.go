@@ -7,6 +7,7 @@ import (
 
 type fixedWindowRateLimiter interface {
 	check(ctx context.Context, tokens int64) (time.Duration, error)
+	can(ctx context.Context, tokens int64) (int64, error)
 	fixedWindow()
 }
 
@@ -22,6 +23,11 @@ type TokenFixedWindowRateLimiter struct {
 // by the requests can be given as argument
 func (l *TokenFixedWindowRateLimiter) Check(ctx context.Context, tokens int64) (time.Duration, error) {
 	return l.fixedWindowRateLimiter.check(ctx, tokens)
+}
+
+// Can returns whether further requests can be made by returning the number of free slots
+func (l *TokenFixedWindowRateLimiter) Can(ctx context.Context, tokens int64) (int64, error) {
+	return l.fixedWindowRateLimiter.can(ctx, tokens)
 }
 
 // NewTokenFixedWindowRateLimiter returns a new instance of TokenFixedWindowRateLimiter by receiving an already

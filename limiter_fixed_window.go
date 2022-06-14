@@ -2,13 +2,13 @@ package pacemaker
 
 import (
 	"context"
-	"github.com/sonirico/pacemaker/internal"
 	"sync"
 	"time"
 )
 
 type fixedWindowStorage interface {
 	Inc(ctx context.Context, args fixedWindowStorageIncArgs) (int64, error)
+	Get(ctx context.Context, window time.Time) (int64, error)
 }
 
 type FixedWindowArgs struct {
@@ -45,6 +45,43 @@ func (l *FixedWindowRateLimiter) Check(ctx context.Context) (time.Duration, erro
 	return l.check(ctx, 1)
 }
 
+func (l *FixedWindowRateLimiter) Can(ctx context.Context) (int64, error) {
+	return l.can(ctx, 1)
+}
+
+func (l *FixedWindowRateLimiter) can(ctx context.Context, tokens int64) (int64, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	now := l.clock.Now()
+
+	l.process(now)
+
+	if l.rateLimitReached {
+		return 0, ErrRateLimitExceeded
+	}
+
+	c, err := l.db.Get(ctx, l.deadline)
+
+	if err != nil {
+		// TODO: Make this behaviour configurable. If storage cannot be accessed, do we pass, or do we block...?
+		return 0, err
+	}
+
+	if c >= l.capacity {
+		l.rateLimitReached = true
+		return 0, ErrRateLimitExceeded
+	}
+
+	free := l.capacity - c - tokens
+
+	if free >= 0 {
+		return l.capacity - c, nil
+	}
+
+	return 0, ErrRateLimitExceeded
+}
+
 func (l *FixedWindowRateLimiter) check(ctx context.Context, tokens int64) (time.Duration, error) {
 	tokens = l.validateTokens(tokens)
 	if tokens > l.capacity {
@@ -56,28 +93,7 @@ func (l *FixedWindowRateLimiter) check(ctx context.Context, tokens int64) (time.
 
 	now := l.clock.Now()
 
-	if l.deadline.IsZero() {
-		// Handle first request
-		l.rateLimitReached = false
-		l.deadline = now.Add(l.rate.Duration())
-	} else if !l.deadline.After(now) {
-		// If deadline is before in time than now, calculate next one
-
-		// now -> 13
-		// deadline -> 23
-		// ----
-		// now -> 25
-		// deadline -> 23
-		// next deadline -> 33
-		// ----
-		// ....
-		// now -> 56
-		// deadline -> 33
-		// next deadline -> 63 (33 + 3 * rate) ; 3 = (56 - 33) / 10 + 1
-		missedCycles := now.Sub(l.deadline)/l.rate.Duration() + 1
-		l.deadline = l.deadline.Add(l.rate.Duration() * missedCycles)
-		l.rateLimitReached = false
-	}
+	l.process(now)
 
 	ttw := l.deadline.Sub(now)
 
@@ -104,6 +120,31 @@ func (l *FixedWindowRateLimiter) check(ctx context.Context, tokens int64) (time.
 	return 0, nil
 }
 
+func (l *FixedWindowRateLimiter) process(now time.Time) {
+	if l.deadline.IsZero() {
+		// Handle first request
+		l.rateLimitReached = false
+		l.deadline = now.Add(l.rate.Duration())
+	} else if !l.deadline.After(now) {
+		// If deadline is before in time than now, calculate next one
+
+		// now -> 13
+		// deadline -> 23
+		// ----
+		// now -> 25
+		// deadline -> 23
+		// next deadline -> 33
+		// ----
+		// ....
+		// now -> 56
+		// deadline -> 33
+		// next deadline -> 63 (33 + 3 * rate) ; 3 = (56 - 33) / 10 + 1
+		missedCycles := now.Sub(l.deadline)/l.rate.Duration() + 1
+		l.deadline = l.deadline.Add(l.rate.Duration() * missedCycles)
+		l.rateLimitReached = false
+	}
+}
+
 func (l *FixedWindowRateLimiter) fixedWindow() {}
 
 // NewFixedWindowRateLimiter returns a new instance of FixedWindowRateLimiter from struct of args
@@ -113,7 +154,7 @@ func NewFixedWindowRateLimiter(args FixedWindowArgs) *FixedWindowRateLimiter {
 		rate:           args.Rate,
 		clock:          args.Clock,
 		db:             args.DB,
-		validateTokens: internal.AtLeast(1),
+		validateTokens: AtLeast(1),
 	}
 }
 
@@ -138,6 +179,18 @@ func (s *FixedWindowMemoryStorage) Inc(ctx context.Context, args fixedWindowStor
 
 	s.counter += args.Tokens()
 	s.ttl = args.TTL()
+
+	return s.counter, ctx.Err()
+}
+
+func (s *FixedWindowMemoryStorage) Get(ctx context.Context, window time.Time) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !s.deadline.Equal(window) {
+		s.deadline = window
+		s.counter = 0
+	}
 
 	return s.counter, ctx.Err()
 }

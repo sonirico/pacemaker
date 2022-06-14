@@ -63,6 +63,19 @@ func (s FixedWindowRedisStorage) Inc(ctx context.Context, args fixedWindowStorag
 	return
 }
 
+func (s FixedWindowRedisStorage) Get(ctx context.Context, window time.Time) (counter int64, err error) {
+	cmd := s.cli.Get(ctx, s.keyGenerator(window))
+
+	err = cmd.Err()
+
+	if err != nil {
+		return
+	}
+
+	counter, err = cmd.Int64()
+	return
+}
+
 func NewFixedWindowRedisStorage(cli *redis.Client, opts FixedWindowRedisStorageOpts) FixedWindowRedisStorage {
 	return FixedWindowRedisStorage{
 		cli: cli,

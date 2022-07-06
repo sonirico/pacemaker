@@ -2,6 +2,7 @@ package pacemaker
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"time"
 
@@ -69,6 +70,11 @@ func (s FixedWindowRedisStorage) Get(ctx context.Context, window time.Time) (cou
 	err = cmd.Err()
 
 	if err != nil {
+		// key does not exist
+		if errors.Is(err, redis.Nil) {
+			counter = 0
+			err = nil
+		}
 		return
 	}
 

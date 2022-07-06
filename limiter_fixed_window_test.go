@@ -75,8 +75,8 @@ func TestNewFixedWindowRateLimiter(t *testing.T) {
 				{
 					method:            check,
 					passTime:          time.Second * 11,
-					expectedFreeSlots: 2,
-					expectedErr:       nil,
+					expectedFreeSlots: 0,
+					expectedErr:       ErrRateLimitExceeded,
 				},
 				{
 					method:            check,

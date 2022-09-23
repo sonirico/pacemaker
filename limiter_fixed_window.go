@@ -7,7 +7,7 @@ import (
 )
 
 type fixedWindowStorage interface {
-	Inc(ctx context.Context, args fixedWindowStorageIncArgs) (int64, error)
+	Inc(ctx context.Context, args FixedWindowIncArgs) (int64, error)
 	Get(ctx context.Context, window time.Time) (int64, error)
 }
 
@@ -101,10 +101,11 @@ func (l *FixedWindowRateLimiter) try(ctx context.Context, tokens int64) (time.Du
 		return ttw, ErrRateLimitExceeded
 	}
 
-	c, err := l.db.Inc(ctx, fixedWindowIncArgs{
-		window: l.deadline,
-		tokens: tokens,
-		ttl:    ttw,
+	c, err := l.db.Inc(ctx, FixedWindowIncArgs{
+		Window:   l.deadline,
+		Tokens:   tokens,
+		Capacity: l.capacity,
+		TTL:      ttw,
 	})
 
 	if err != nil {
@@ -168,17 +169,17 @@ type FixedWindowMemoryStorage struct {
 	ttl      time.Duration
 }
 
-func (s *FixedWindowMemoryStorage) Inc(ctx context.Context, args fixedWindowStorageIncArgs) (int64, error) {
+func (s *FixedWindowMemoryStorage) Inc(ctx context.Context, args FixedWindowIncArgs) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if !s.deadline.Equal(args.Window()) {
-		s.deadline = args.Window()
+	if !s.deadline.Equal(args.Window) {
+		s.deadline = args.Window
 		s.counter = 0
 	}
 
-	s.counter += args.Tokens()
-	s.ttl = args.TTL()
+	s.counter += args.Tokens
+	s.ttl = args.TTL
 
 	return s.counter, ctx.Err()
 }

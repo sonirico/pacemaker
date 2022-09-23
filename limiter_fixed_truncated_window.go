@@ -9,7 +9,7 @@ import (
 type fixedTruncatedWindowStorage interface {
 	Inc(
 		ctx context.Context,
-		args fixedWindowStorageIncArgs,
+		args FixedWindowIncArgs,
 	) (int64, error)
 	Get(
 		ctx context.Context,
@@ -48,9 +48,10 @@ type FixedTruncatedWindowRateLimiter struct {
 // was exhausted or any kind or error happened when updating the backend. Typically, you would do
 //
 // ttw, err := limiter.Try(ctx)
-// if errors.Is(ErrRateLimitExceeded) {
-// 		<-time.After(ttw) // Wait, or enqueue your request
-// }
+//
+//	if errors.Is(ErrRateLimitExceeded) {
+//			<-time.After(ttw) // Wait, or enqueue your request
+//	}
 func (l *FixedTruncatedWindowRateLimiter) Try(ctx context.Context) (time.Duration, error) {
 	return l.try(ctx, 1)
 }
@@ -85,10 +86,11 @@ func (l *FixedTruncatedWindowRateLimiter) try(ctx context.Context, tokens int64)
 		return ttw, ErrRateLimitExceeded
 	}
 
-	c, err := l.db.Inc(ctx, fixedWindowIncArgs{
-		window: window,
-		tokens: tokens,
-		ttl:    ttw,
+	c, err := l.db.Inc(ctx, FixedWindowIncArgs{
+		Window:   window,
+		Tokens:   tokens,
+		Capacity: l.capacity,
+		TTL:      ttw,
 	})
 
 	if err != nil {
@@ -170,17 +172,17 @@ type FixedTruncatedWindowMemoryStorage struct {
 
 func (s *FixedTruncatedWindowMemoryStorage) Inc(
 	ctx context.Context,
-	args fixedWindowStorageIncArgs,
+	args FixedWindowIncArgs,
 ) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !s.previousWindow.Equal(args.Window()) {
-		s.previousWindow = args.Window()
+	if !s.previousWindow.Equal(args.Window) {
+		s.previousWindow = args.Window
 		s.counter = 0
 	}
 
-	s.counter += args.Tokens()
-	s.ttl = args.TTL()
+	s.counter += args.Tokens
+	s.ttl = args.TTL
 
 	return s.counter, ctx.Err()
 }

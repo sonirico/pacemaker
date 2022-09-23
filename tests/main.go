@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
-	"github.com/go-redis/redis/v8"
-	"github.com/sonirico/pacemaker"
+	"fmt"
 	"log"
 	"time"
+
+	"github.com/go-redis/redis/v8"
+	"github.com/sonirico/pacemaker"
 )
 
 func main() {
@@ -18,23 +20,51 @@ func main() {
 
 	redisCli := redis.NewClient(redisOpts)
 
-	rateLimiter := pacemaker.NewTokenFixedWindowRateLimiter(
-		pacemaker.NewFixedWindowRateLimiter(pacemaker.FixedWindowArgs{
-			Capacity: 1200,
-			Rate: pacemaker.Rate{
-				Amount: 1,
-				Unit:   time.Minute,
-			},
-			Clock: pacemaker.NewClock(),
-			DB: pacemaker.NewFixedWindowRedisStorage(redisCli, pacemaker.FixedWindowRedisStorageOpts{
-				Prefix: "pacemaker",
-			}),
-		}),
-	)
+	db := pacemaker.NewFixedWindowRedisStorage(redisCli, pacemaker.FixedWindowRedisStorageOpts{
+		Prefix: "pacemaker",
+	})
 
-	for i := 0; i < 100; i++ {
-		ttw, err := rateLimiter.Try(ctx, 100)
-		log.Println(ttw, err)
-		time.Sleep(time.Second)
+	window := time.Now().Truncate(time.Minute)
+
+	usedTokens, err := db.Inc(ctx, pacemaker.FixedWindowIncArgs{
+		Capacity: 10,
+		Tokens:   6,
+		TTL:      time.Minute,
+		Window:   window,
+	})
+
+	if err != nil {
+		panic(err)
+	}
+
+	log.Println("tokens usados", usedTokens)
+
+	usedTokens, err = db.Inc(ctx, pacemaker.FixedWindowIncArgs{
+		Capacity: 10,
+		Tokens:   6,
+		TTL:      time.Minute,
+		Window:   window,
+	})
+
+	if err != nil {
+		panic(err)
+	}
+
+	expectedTokens := int64(12)
+
+	if expectedTokens != usedTokens {
+		fmt.Printf("unexpected tokens, want %d, have %d", expectedTokens, usedTokens)
+	}
+
+	usedTokens, err = db.Get(ctx, window)
+
+	expectedPersistedTokens := int64(6)
+
+	if expectedPersistedTokens != usedTokens {
+		fmt.Printf(
+			"unexpected persisted counter, want %d, have %d",
+			expectedPersistedTokens,
+			usedTokens,
+		)
 	}
 }

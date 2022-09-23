@@ -14,10 +14,11 @@ type (
 		Prefix string
 	}
 
-	fixedWindowIncArgs struct {
-		window time.Time
-		tokens int64
-		ttl    time.Duration
+	FixedWindowIncArgs struct {
+		Window   time.Time
+		TTL      time.Duration
+		Tokens   int64
+		Capacity int64
 	}
 
 	FixedWindowRedisStorage struct {
@@ -25,51 +26,67 @@ type (
 
 		keyGenerator func(time.Time) string
 	}
-
-	fixedWindowStorageIncArgs interface {
-		TTL() time.Duration
-		Window() time.Time
-		Tokens() int64
-	}
 )
 
-func (a fixedWindowIncArgs) Tokens() int64 {
-	return a.tokens
+const (
+	script = `
+		local counter = tonumber(redis.call('GET', KEYS[1])) or 0
+		local tokens = tonumber(ARGV[1])
+		local capacity = tonumber(ARGV[2])
+
+		if counter + tokens <= capacity then
+			counter = tonumber(redis.call('INCRBY', KEYS[1], tokens))
+		else
+			counter = counter + tokens
+    end
+
+		redis.call('PEXPIRE', KEYS[1], ARGV[3])
+
+		return counter
+	`
+)
+
+var (
+	ScriptHash = Sha1Hash(script)
+)
+
+// Load will prepare this storage to be ready for usage, such as
+// load into redis needed lua scripts. Calling to this method is not
+// mandatory, but highly recommended.
+func (s FixedWindowRedisStorage) Load(ctx context.Context) error {
+	if err := s.cli.ScriptLoad(ctx, script).Err(); err != nil {
+		return ErrCannotLoadScript
+	}
+	return nil
 }
 
-func (a fixedWindowIncArgs) Window() time.Time {
-	return a.window
-}
+// Inc will increase, if there is room to, the rate limiting counter for the bucket
+// specified by window argument.
+func (s FixedWindowRedisStorage) Inc(ctx context.Context, args FixedWindowIncArgs) (counter int64, err error) {
+	key := s.keyGenerator(args.Window)
 
-func (a fixedWindowIncArgs) TTL() time.Duration {
-	return a.ttl
-}
+	cmd := s.cli.EvalSha(ctx, ScriptHash, []string{key}, []any{args.Tokens, args.Capacity, args.TTL.Milliseconds()})
 
-func (s FixedWindowRedisStorage) Inc(ctx context.Context, args fixedWindowStorageIncArgs) (counter int64, err error) {
-	var incrCmd *redis.IntCmd
+	if err = cmd.Err(); err != nil {
+		if errIsRedisNoScript(err) {
+			if err = s.cli.ScriptLoad(ctx, script).Err(); err != nil {
+				err = ErrCannotLoadScript
+				return
+			}
 
-	_, err = s.cli.Pipelined(ctx, func(pipe redis.Pipeliner) error {
-		key := s.keyGenerator(args.Window())
-		incrCmd = pipe.IncrBy(ctx, key, args.Tokens())
-		return pipe.PExpire(ctx, key, args.TTL()).Err()
-	})
-
-	if err != nil {
+			return s.Inc(ctx, args)
+		}
 		return
 	}
 
-	counter = incrCmd.Val()
-	err = incrCmd.Err()
-
+	counter, err = cmd.Int64()
 	return
 }
 
 func (s FixedWindowRedisStorage) Get(ctx context.Context, window time.Time) (counter int64, err error) {
 	cmd := s.cli.Get(ctx, s.keyGenerator(window))
 
-	err = cmd.Err()
-
-	if err != nil {
+	if err = cmd.Err(); err != nil {
 		// key does not exist
 		if errors.Is(err, redis.Nil) {
 			counter = 0

@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
-	"github.com/go-redis/redis/v8"
-	"github.com/sonirico/pacemaker"
 	"log"
 	"time"
+
+	"github.com/go-redis/redis/v8"
+	"github.com/sonirico/pacemaker"
 )
 
 func main() {
@@ -35,9 +36,12 @@ func main() {
 				Unit:   rateUnit,
 			},
 			Clock: pacemaker.NewClock(),
-			DB: pacemaker.NewFixedWindowRedisStorage(redisCli, pacemaker.FixedWindowRedisStorageOpts{
-				Prefix: "pacemaker",
-			}),
+			DB: pacemaker.NewFixedWindowRedisStorage(
+				redisCli,
+				pacemaker.FixedWindowRedisStorageOpts{
+					Prefix: "pacemaker",
+				},
+			),
 		})
 
 	for i := 0; i < 100; i++ {

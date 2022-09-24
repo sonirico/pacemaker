@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
-	"github.com/go-redis/redis/v8"
-	"github.com/sonirico/pacemaker"
 	"log"
 	"time"
+
+	"github.com/go-redis/redis/v8"
+	"github.com/sonirico/pacemaker"
 )
 
 func main() {

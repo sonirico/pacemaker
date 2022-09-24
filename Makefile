@@ -34,21 +34,25 @@ help:
 	@echo "make test - run go test including race detection"
 	@echo "make bench - run go test including benchmarking"
 
-
 .PHONY: format
 format:
 	$(info: Make: Format)
-	@echo go fmt ./...
-	@go fmt ./...
-
+	gofmt -w ./**/*
+	goimports -w ./**/*
+	golines -w ./**/*
 
 .PHONY: test
 test:
+	$(info: Make: Test)
 	CGO_ENABLED=1 go test -race ${TEST_OPTIONS} ${SOURCE_FILES} -run ${TEST_PATTERN} -timeout=${TEST_TIMEOUT}
 
 .PHONY: bench
 bench:
+	$(info: Make: Bench)
 	CGO_ENABLED=1 go test -race ${BENCH_OPTIONS} ${SOURCE_FILES} -run ${TEST_PATTERN} -timeout=${TEST_TIMEOUT}
 
-
-
+.PHONY: setup
+setup:
+	$(info: Make: Setup)
+	go install golang.org/x/tools/cmd/goimports@latest
+	go install github.com/segmentio/golines@latest

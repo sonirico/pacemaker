@@ -268,28 +268,28 @@ func TestNewFixedTruncatedWindowRateLimiter(t *testing.T) {
 			for i, step := range test.steps {
 				switch step.method {
 				case try:
-					ttw, err := rl.Try(ctx)
+					res, err := rl.Try(ctx)
 
 					if !errors.Is(err, step.expectedErr) {
 						t.Errorf("step(%d) unexpected error, want %v, have %v",
 							i+1, step.expectedErr, err)
 					}
 
-					if ttw != step.expectedTtw {
+					if res.TimeToWait != step.expectedTtw {
 						t.Errorf("step(%d) unexpected time to wait, want %v, have %v",
-							i+1, step.expectedTtw, ttw)
+							i+1, step.expectedTtw, res.TimeToWait)
 					}
 
 				case check:
-					free, err := rl.Check(ctx)
+					res, err := rl.Check(ctx)
 					if !errors.Is(err, step.expectedErr) {
 						t.Errorf("step(%d) unexpected error, want %v, have %v",
 							i+1, step.expectedErr, err)
 					}
 
-					if free != step.expectedFreeSlots {
+					if res.FreeSlots != step.expectedFreeSlots {
 						t.Errorf("step(%d) unexpected free slots, want %d, have %d",
-							i+1, step.expectedFreeSlots, free)
+							i+1, step.expectedFreeSlots, res.FreeSlots)
 					}
 				}
 

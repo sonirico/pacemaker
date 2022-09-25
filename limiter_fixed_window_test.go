@@ -368,7 +368,8 @@ func TestNewFixedWindowRateLimiter(t *testing.T) {
 			for i, step := range test.steps {
 				switch step.method {
 				case try:
-					ttw, err := rl.Try(ctx)
+					res, err := rl.Try(ctx)
+					ttw := res.TimeToWait
 
 					if !errors.Is(err, step.expectedErr) {
 						t.Errorf("step(%d) unexpected error, want %v, have %v",
@@ -381,11 +382,13 @@ func TestNewFixedWindowRateLimiter(t *testing.T) {
 					}
 
 				case check:
-					free, err := rl.Check(ctx)
+					res, err := rl.Check(ctx)
 					if !errors.Is(err, step.expectedErr) {
 						t.Errorf("step(%d) unexpected error, want %v, have %v",
 							i+1, step.expectedErr, err)
 					}
+
+					free := res.FreeSlots
 
 					if free != step.expectedFreeSlots {
 						t.Errorf("step(%d) unexpected free slots, want %d, have %d",

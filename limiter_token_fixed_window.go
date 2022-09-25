@@ -2,12 +2,11 @@ package pacemaker
 
 import (
 	"context"
-	"time"
 )
 
 type fixedWindowRateLimiter interface {
-	try(ctx context.Context, tokens int64) (time.Duration, error)
-	check(ctx context.Context, tokens int64) (int64, error)
+	try(ctx context.Context, tokens int64) (Result, error)
+	check(ctx context.Context, tokens int64) (Result, error)
 	fixedWindow()
 }
 
@@ -21,12 +20,12 @@ type TokenFixedWindowRateLimiter struct {
 
 // Try returns the amount of time to wait when the rate limit has been exceeded. The total amount of tokens consumed
 // by the requests check be given as argument
-func (l *TokenFixedWindowRateLimiter) Try(ctx context.Context, tokens int64) (time.Duration, error) {
+func (l *TokenFixedWindowRateLimiter) Try(ctx context.Context, tokens int64) (Result, error) {
 	return l.fixedWindowRateLimiter.try(ctx, tokens)
 }
 
 // Check returns whether further requests check be made by returning the number of free slots
-func (l *TokenFixedWindowRateLimiter) Check(ctx context.Context, tokens int64) (int64, error) {
+func (l *TokenFixedWindowRateLimiter) Check(ctx context.Context, tokens int64) (Result, error) {
 	return l.fixedWindowRateLimiter.check(ctx, tokens)
 }
 

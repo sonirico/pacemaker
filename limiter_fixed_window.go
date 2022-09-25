@@ -41,51 +41,18 @@ type FixedWindowRateLimiter struct {
 	rateLimitReached bool
 }
 
-func (l *FixedWindowRateLimiter) Try(ctx context.Context) (time.Duration, error) {
+func (l *FixedWindowRateLimiter) Try(ctx context.Context) (Result, error) {
 	return l.try(ctx, 1)
 }
 
-func (l *FixedWindowRateLimiter) Check(ctx context.Context) (int64, error) {
+func (l *FixedWindowRateLimiter) Check(ctx context.Context) (Result, error) {
 	return l.check(ctx, 1)
 }
 
-func (l *FixedWindowRateLimiter) check(ctx context.Context, tokens int64) (int64, error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	now := l.clock.Now()
-
-	l.process(now)
-
-	if l.rateLimitReached {
-		return 0, ErrRateLimitExceeded
-	}
-
-	c, err := l.db.Get(ctx, l.deadline)
-
-	if err != nil {
-		// TODO: Make this behaviour configurable. If storage checknot be accessed, do we pass, or do we block...?
-		return 0, err
-	}
-
-	if c >= l.capacity {
-		l.rateLimitReached = true
-		return 0, ErrRateLimitExceeded
-	}
-
-	free := l.capacity - c - tokens
-
-	if free >= 0 {
-		return l.capacity - c, nil
-	}
-
-	return 0, ErrRateLimitExceeded
-}
-
-func (l *FixedWindowRateLimiter) try(ctx context.Context, tokens int64) (time.Duration, error) {
+func (l *FixedWindowRateLimiter) try(ctx context.Context, tokens int64) (Result, error) {
 	tokens = l.validateTokens(tokens)
 	if tokens > l.capacity {
-		return 0, ErrTokensGreaterThanCapacity
+		return nores, ErrTokensGreaterThanCapacity
 	}
 
 	l.mu.Lock()
@@ -98,10 +65,15 @@ func (l *FixedWindowRateLimiter) try(ctx context.Context, tokens int64) (time.Du
 	ttw := l.deadline.Sub(now)
 
 	if l.rateLimitReached {
-		return ttw, ErrRateLimitExceeded
+		return res(ttw, 0), ErrRateLimitExceeded
 	}
 
-	c, err := l.db.Inc(ctx, FixedWindowIncArgs{
+	var (
+		c   int64
+		err error
+	)
+
+	c, err = l.db.Inc(ctx, FixedWindowIncArgs{
 		Window:   l.deadline,
 		Tokens:   tokens,
 		Capacity: l.capacity,
@@ -109,16 +81,57 @@ func (l *FixedWindowRateLimiter) try(ctx context.Context, tokens int64) (time.Du
 	})
 
 	if err != nil {
-		// TODO: Make this behaviour configurable. If storage checknot be accessed, do we pass, or do we block...?
-		return 0, err
+		// TODO: Make this behaviour configurable. If storage cannot be accessed, do we pass, or do we block...?
+		return nores, err
 	}
 
-	if c > l.capacity {
-		l.rateLimitReached = true
-		return ttw, ErrRateLimitExceeded
+	free := l.capacity - c
+
+	if free >= 0 {
+		return res(0, l.capacity-c), nil
 	}
 
-	return 0, nil
+	return res(ttw, 0), ErrRateLimitExceeded
+}
+
+func (l *FixedWindowRateLimiter) check(ctx context.Context, tokens int64) (Result, error) {
+	tokens = l.validateTokens(tokens)
+	if tokens > l.capacity {
+		return nores, ErrTokensGreaterThanCapacity
+	}
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	now := l.clock.Now()
+
+	l.process(now)
+
+	ttw := l.deadline.Sub(now)
+
+	if l.rateLimitReached {
+		return res(ttw, 0), ErrRateLimitExceeded
+	}
+
+	var (
+		c   int64
+		err error
+	)
+
+	c, err = l.db.Get(ctx, l.deadline)
+
+	if err != nil {
+		// TODO: Make this behaviour configurable. If storage cannot be accessed, do we pass, or do we block...?
+		return nores, err
+	}
+
+	free := l.capacity - c - tokens
+
+	if free >= 0 {
+		return res(ttw, l.capacity-c), nil
+	}
+
+	return res(ttw, 0), ErrRateLimitExceeded
 }
 
 func (l *FixedWindowRateLimiter) process(now time.Time) {

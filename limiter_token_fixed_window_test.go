@@ -317,7 +317,8 @@ func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 
 				switch step.method {
 				case try:
-					ttw, err := rl.Try(ctx, step.requestTokens)
+					res, err := rl.Try(ctx, step.requestTokens)
+					ttw := res.TimeToWait
 
 					if !errors.Is(err, step.expectedErr) {
 						t.Errorf("step(%d) unexpected error, want %v, have %v",
@@ -330,7 +331,9 @@ func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 					}
 
 				case check:
-					free, err := rl.Check(ctx, step.requestTokens)
+					res, err := rl.Check(ctx, step.requestTokens)
+					free := res.FreeSlots
+
 					if !errors.Is(err, step.expectedErr) {
 						t.Errorf("step(%d) unexpected error, want %v, have %v",
 							i+1, step.expectedErr, err)
@@ -723,30 +726,34 @@ func TestNewTokenFixedWindowRateLimiter_WindowStartsWithFirstRequest(t *testing.
 			for i, step := range test.steps {
 				clock.Forward(step.forwardBefore)
 
+				errorf := func(format string, args ...any) {
+					t.Errorf("[%s]"+format, step.method, args)
+				}
+
 				switch step.method {
 				case try:
-					ttw, err := rl.Try(ctx, step.requestTokens)
+					res, err := rl.Try(ctx, step.requestTokens)
 
 					if !errors.Is(err, step.expectedErr) {
-						t.Errorf("step(%d) unexpected error, want %v, have %v",
+						errorf("step(%d) unexpected error, want %v, have %v",
 							i+1, step.expectedErr, err)
 					}
 
-					if ttw != step.expectedTtw {
-						t.Errorf("step(%d) unexpected time to wait, want %v, have %v",
-							i+1, step.expectedTtw, ttw)
+					if res.TimeToWait != step.expectedTtw {
+						errorf("step(%d) unexpected time to wait, want %v, have %v",
+							i+1, step.expectedTtw, res.TimeToWait)
 					}
 
 				case check:
-					free, err := rl.Check(ctx, step.requestTokens)
+					res, err := rl.Check(ctx, step.requestTokens)
 					if !errors.Is(err, step.expectedErr) {
 						t.Errorf("step(%d) unexpected error, want %v, have %v",
 							i+1, step.expectedErr, err)
 					}
 
-					if free != step.expectedFreeSlots {
+					if res.FreeSlots != step.expectedFreeSlots {
 						t.Errorf("step(%d) unexpected free slots, want %d, have %d",
-							i+1, step.expectedFreeSlots, free)
+							i+1, step.expectedFreeSlots, res.FreeSlots)
 					}
 				}
 

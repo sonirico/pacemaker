@@ -52,20 +52,20 @@ type FixedTruncatedWindowRateLimiter struct {
 //	if errors.Is(ErrRateLimitExceeded) {
 //			<-time.After(ttw) // Wait, or enqueue your request
 //	}
-func (l *FixedTruncatedWindowRateLimiter) Try(ctx context.Context) (time.Duration, error) {
+func (l *FixedTruncatedWindowRateLimiter) Try(ctx context.Context) (Result, error) {
 	return l.try(ctx, 1)
 }
 
 // Check return how many free slots remain without increasing the token counter. This testMethod is typically used
 // to assert there are available requests prior try an increase the counter
-func (l *FixedTruncatedWindowRateLimiter) Check(ctx context.Context) (int64, error) {
+func (l *FixedTruncatedWindowRateLimiter) Check(ctx context.Context) (Result, error) {
 	return l.check(ctx, 1)
 }
 
-func (l *FixedTruncatedWindowRateLimiter) try(ctx context.Context, tokens int64) (time.Duration, error) {
+func (l *FixedTruncatedWindowRateLimiter) try(ctx context.Context, tokens int64) (Result, error) {
 	tokens = l.validateTokens(tokens)
 	if tokens > l.capacity {
-		return 0, ErrTokensGreaterThanCapacity
+		return nores, ErrTokensGreaterThanCapacity
 	}
 
 	l.mu.Lock()
@@ -83,7 +83,7 @@ func (l *FixedTruncatedWindowRateLimiter) try(ctx context.Context, tokens int64)
 	ttw := l.rate - now.Sub(window)
 
 	if l.rateLimitReached {
-		return ttw, ErrRateLimitExceeded
+		return res(ttw, 0), ErrRateLimitExceeded
 	}
 
 	c, err := l.db.Inc(ctx, FixedWindowIncArgs{
@@ -94,18 +94,25 @@ func (l *FixedTruncatedWindowRateLimiter) try(ctx context.Context, tokens int64)
 	})
 
 	if err != nil {
-		return 0, err
+		// TODO:  make  configurable
+		return nores, err
 	}
 
 	if c > l.capacity {
 		l.rateLimitReached = true
-		return ttw, ErrRateLimitExceeded
+		return res(ttw, 0), ErrRateLimitExceeded
 	}
 
-	return 0, nil
+	free := l.capacity - c
+
+	if free >= 0 {
+		return res(0, l.capacity-c), nil
+	}
+
+	return res(ttw, l.capacity-c), ErrRateLimitExceeded
 }
 
-func (l *FixedTruncatedWindowRateLimiter) check(ctx context.Context, tokens int64) (int64, error) {
+func (l *FixedTruncatedWindowRateLimiter) check(ctx context.Context, tokens int64) (Result, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -117,31 +124,33 @@ func (l *FixedTruncatedWindowRateLimiter) check(ctx context.Context, tokens int6
 		// new window so no rate Limit
 		l.rateLimitReached = false
 		l.window = window
-		return l.capacity, nil
+		return res(0, l.capacity), nil
 	}
 
+	ttw := l.rate - now.Sub(window)
+
 	if l.rateLimitReached {
-		return 0, ErrRateLimitExceeded
+		return res(ttw, 0), ErrRateLimitExceeded
 	}
 
 	c, err := l.db.Get(ctx, window)
 
 	if err != nil {
-		return 0, err
+		return nores, err
 	}
 
 	if c >= l.capacity {
 		l.rateLimitReached = true
-		return l.capacity - c, ErrRateLimitExceeded
+		return res(ttw, l.capacity-c), ErrRateLimitExceeded
 	}
 
 	free := l.capacity - c - tokens
 
 	if free >= 0 {
-		return l.capacity - c, nil
+		return res(0, l.capacity-c), nil
 	}
 
-	return l.capacity - c, ErrRateLimitExceeded
+	return res(ttw, l.capacity-c), ErrRateLimitExceeded
 }
 
 func (l *FixedTruncatedWindowRateLimiter) fixedWindow() {}

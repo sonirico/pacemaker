@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"time"
 
@@ -20,51 +19,36 @@ func main() {
 
 	redisCli := redis.NewClient(redisOpts)
 
-	db := pacemaker.NewFixedWindowRedisStorage(redisCli, pacemaker.FixedWindowRedisStorageOpts{
-		Prefix: "pacemaker",
-	})
-
-	window := time.Now().Truncate(time.Minute)
-
-	usedTokens, err := db.Inc(ctx, pacemaker.FixedWindowIncArgs{
-		Capacity: 10,
-		Tokens:   6,
-		TTL:      time.Minute,
-		Window:   window,
-	})
-
-	if err != nil {
-		panic(err)
-	}
-
-	log.Println("tokens usados", usedTokens)
-
-	usedTokens, err = db.Inc(ctx, pacemaker.FixedWindowIncArgs{
-		Capacity: 10,
-		Tokens:   6,
-		TTL:      time.Minute,
-		Window:   window,
-	})
-
-	if err != nil {
-		panic(err)
-	}
-
-	expectedTokens := int64(12)
-
-	if expectedTokens != usedTokens {
-		fmt.Printf("unexpected tokens, want %d, have %d", expectedTokens, usedTokens)
-	}
-
-	usedTokens, err = db.Get(ctx, window)
-
-	expectedPersistedTokens := int64(6)
-
-	if expectedPersistedTokens != usedTokens {
-		fmt.Printf(
-			"unexpected persisted counter, want %d, have %d",
-			expectedPersistedTokens,
-			usedTokens,
+	rateLimit :=
+		pacemaker.NewFixedWindowRateLimiter(
+			pacemaker.FixedWindowArgs{
+				Capacity: 1200,
+				Rate: pacemaker.Rate{
+					Unit:   time.Hour,
+					Amount: 1,
+				},
+				Clock: pacemaker.NewClock(),
+				DB: pacemaker.NewFixedWindowRedisStorage(
+					redisCli,
+					pacemaker.FixedWindowRedisStorageOpts{
+						Prefix: "pacemaker",
+					},
+				),
+			},
 		)
+
+	result, err := rateLimit.Try(ctx)
+	if err != nil {
+		log.Printf("error try: '%v'", err)
 	}
+
+	log.Printf("Try Result: '%v'", result)
+
+	result, err = rateLimit.Dump(ctx)
+
+	if err != nil {
+		log.Printf("error dump: '%v'", err)
+	}
+
+	log.Printf("Dump Result: '%v'", result)
 }

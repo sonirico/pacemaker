@@ -62,10 +62,18 @@ func (s FixedWindowRedisStorage) Load(ctx context.Context) error {
 
 // Inc will increase, if there is room to, the rate limiting counter for the bucket
 // specified by window argument.
-func (s FixedWindowRedisStorage) Inc(ctx context.Context, args FixedWindowIncArgs) (counter int64, err error) {
+func (s FixedWindowRedisStorage) Inc(
+	ctx context.Context,
+	args FixedWindowIncArgs,
+) (counter int64, err error) {
 	key := s.keyGenerator(args.Window)
 
-	cmd := s.cli.EvalSha(ctx, ScriptHash, []string{key}, []any{args.Tokens, args.Capacity, args.TTL.Milliseconds()})
+	cmd := s.cli.EvalSha(
+		ctx,
+		ScriptHash,
+		[]string{key},
+		[]any{args.Tokens, args.Capacity, args.TTL.Milliseconds()},
+	)
 
 	if err = cmd.Err(); err != nil {
 		if errIsRedisNoScript(err) {
@@ -83,7 +91,10 @@ func (s FixedWindowRedisStorage) Inc(ctx context.Context, args FixedWindowIncArg
 	return
 }
 
-func (s FixedWindowRedisStorage) Get(ctx context.Context, window time.Time) (counter int64, err error) {
+func (s FixedWindowRedisStorage) Get(
+	ctx context.Context,
+	window time.Time,
+) (counter int64, err error) {
 	cmd := s.cli.Get(ctx, s.keyGenerator(window))
 
 	if err = cmd.Err(); err != nil {
@@ -99,7 +110,10 @@ func (s FixedWindowRedisStorage) Get(ctx context.Context, window time.Time) (cou
 	return
 }
 
-func NewFixedWindowRedisStorage(cli *redis.Client, opts FixedWindowRedisStorageOpts) FixedWindowRedisStorage {
+func NewFixedWindowRedisStorage(
+	cli *redis.Client,
+	opts FixedWindowRedisStorageOpts,
+) FixedWindowRedisStorage {
 	return FixedWindowRedisStorage{
 		cli: cli,
 		keyGenerator: func(t time.Time) string {

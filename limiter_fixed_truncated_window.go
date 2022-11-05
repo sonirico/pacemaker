@@ -62,6 +62,22 @@ func (l *FixedTruncatedWindowRateLimiter) Check(ctx context.Context) (Result, er
 	return l.check(ctx, 1)
 }
 
+func (l *FixedTruncatedWindowRateLimiter) Dump(ctx context.Context) (r Result, err error) {
+	now := l.clock.Now()
+	window := now.Truncate(l.rate)
+
+	c, err := l.db.Get(ctx, window)
+
+	if c >= l.capacity {
+		// rate limit exceeded
+		r = res(l.rate-now.Sub(window), l.capacity-c)
+	} else {
+		r = res(0, l.capacity-c)
+	}
+
+	return
+}
+
 func (l *FixedTruncatedWindowRateLimiter) try(ctx context.Context, tokens int64) (Result, error) {
 	tokens = l.validateTokens(tokens)
 	if tokens > l.capacity {
@@ -190,10 +206,11 @@ func (s *FixedTruncatedWindowMemoryStorage) Inc(
 		s.counter = 0
 	}
 
-	s.counter += args.Tokens
+	counter := args.Tokens + s.counter
+	s.counter = min(counter, args.Capacity)
 	s.ttl = args.TTL
 
-	return s.counter, ctx.Err()
+	return counter, ctx.Err()
 }
 
 func (s *FixedTruncatedWindowMemoryStorage) Get(

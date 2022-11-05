@@ -29,6 +29,35 @@ type testTokenFixedWindow struct {
 	steps []testTokenFixedWindowStep
 }
 
+func assertTokenFixedWindowStepEquals(
+	t *testing.T,
+	idx int,
+	actual Result,
+	actualErr error,
+	expected testTokenFixedWindowStep,
+) bool {
+	t.Helper()
+	if !errors.Is(actualErr, expected.expectedErr) {
+		t.Errorf("step(%s, %d) unexpected error, want %v, have %v",
+			expected.method, idx, expected.expectedErr, actualErr)
+		return false
+	}
+
+	if actual.TimeToWait != expected.expectedTtw {
+		t.Errorf("expected(%s, %d) unexpected time to wait, want %v, have %v",
+			expected.method, idx, expected.expectedTtw, actual.TimeToWait)
+		return false
+	}
+
+	if actual.FreeSlots != expected.expectedFreeSlots {
+		t.Errorf("expected(%s, %d) unexpected free slots, want %d, have %d",
+			expected.method, idx, expected.expectedFreeSlots, actual.FreeSlots)
+		return false
+	}
+
+	return true
+}
+
 func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 	tests := []testTokenFixedWindow{
 		{
@@ -45,11 +74,12 @@ func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 					requestTokens:     25,
 				},
 				{
-					method:        try,
-					forwardAfter:  0,
-					expectedTtw:   0,
-					expectedErr:   nil,
-					requestTokens: 25, // 25
+					method:            try,
+					forwardAfter:      0,
+					expectedTtw:       0,
+					expectedErr:       nil,
+					requestTokens:     25, // 25
+					expectedFreeSlots: 25,
 				},
 				{
 					method:            check,
@@ -57,13 +87,15 @@ func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 					expectedFreeSlots: 25,
 					expectedErr:       nil,
 					requestTokens:     25,
+					expectedTtw:       0,
 				},
 				{
-					method:        try,
-					forwardAfter:  0,
-					expectedTtw:   0,
-					expectedErr:   nil,
-					requestTokens: 24, // 49
+					method:            try,
+					forwardAfter:      0,
+					expectedTtw:       0,
+					expectedErr:       nil,
+					requestTokens:     24, // 49
+					expectedFreeSlots: 1,
 				},
 				{
 					method:            check,
@@ -71,18 +103,21 @@ func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 					expectedFreeSlots: 1,
 					expectedErr:       ErrRateLimitExceeded,
 					requestTokens:     25,
+					expectedTtw:       time.Second * 10,
 				},
 				{
-					method:        try,
-					forwardAfter:  0,
-					expectedTtw:   time.Second * 10,
-					expectedErr:   ErrRateLimitExceeded,
-					requestTokens: 3, // 52 -> Rate limit!
+					method:            try,
+					forwardAfter:      0,
+					expectedTtw:       time.Second * 10,
+					expectedErr:       ErrRateLimitExceeded,
+					requestTokens:     3, // 52 -> Rate limit!
+					expectedFreeSlots: 0,
 				},
 				{
 					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 0,
+					expectedTtw:       time.Second * 10,
 					expectedErr:       ErrRateLimitExceeded,
 					requestTokens:     25,
 				},
@@ -99,28 +134,32 @@ func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 					forwardAfter:      0,
 					expectedFreeSlots: 20,
 					expectedErr:       nil,
+					expectedTtw:       0,
 					requestTokens:     11,
 				},
 				{
-					method:        try,
-					forwardAfter:  0,
-					expectedTtw:   0,
-					expectedErr:   nil,
-					requestTokens: 11, // 11
+					method:            try,
+					forwardAfter:      0,
+					expectedTtw:       0,
+					expectedFreeSlots: 9,
+					expectedErr:       nil,
+					requestTokens:     11, // 11
 				},
 				{
 					method:            check,
 					forwardAfter:      0,
+					expectedTtw:       0,
 					expectedFreeSlots: 9,
 					expectedErr:       nil,
 					requestTokens:     3,
 				},
 				{
-					method:        try,
-					forwardAfter:  0,
-					expectedTtw:   0,
-					expectedErr:   nil,
-					requestTokens: 3, // 14
+					method:            try,
+					forwardAfter:      0,
+					expectedTtw:       0,
+					expectedFreeSlots: 6,
+					expectedErr:       nil,
+					requestTokens:     3, // 14
 				},
 				{
 					method:            check,
@@ -128,25 +167,29 @@ func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 					expectedFreeSlots: 6,
 					expectedErr:       nil,
 					requestTokens:     3,
+					expectedTtw:       0,
 				},
 				{
 					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 6,
+					expectedTtw:       time.Second * 4,
 					expectedErr:       ErrRateLimitExceeded,
 					requestTokens:     20,
 				},
 				{
-					method:        try,
-					requestTokens: 7, // 21 -> Rate Limit!
-					forwardAfter:  0,
-					expectedTtw:   time.Second * 4,
-					expectedErr:   ErrRateLimitExceeded,
+					method:            try,
+					requestTokens:     7, // 21 -> Rate Limit!
+					forwardAfter:      0,
+					expectedFreeSlots: 0,
+					expectedTtw:       time.Second * 4,
+					expectedErr:       ErrRateLimitExceeded,
 				},
 				{
 					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 0,
+					expectedTtw:       time.Second * 4,
 					expectedErr:       ErrRateLimitExceeded,
 					requestTokens:     1,
 				},
@@ -162,29 +205,33 @@ func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 2,
+					expectedTtw:       0,
 					expectedErr:       nil,
 					requestTokens:     1,
 				},
 				{
-					method:        try,
-					requestTokens: 1, // 1
-					forwardAfter:  time.Second,
-					expectedTtw:   0,
-					expectedErr:   nil,
+					method:            try,
+					requestTokens:     1, // 1
+					forwardAfter:      time.Second,
+					expectedFreeSlots: 1,
+					expectedTtw:       0,
+					expectedErr:       nil,
 				},
 				{
 					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 1,
+					expectedTtw:       0,
 					expectedErr:       nil,
 					requestTokens:     1,
 				},
 				{
-					method:        try,
-					requestTokens: 1,               // 2
-					forwardAfter:  time.Second * 2, // 2022-02-05 00:00:11
-					expectedTtw:   0,
-					expectedErr:   nil,
+					method:            try,
+					requestTokens:     1,               // 2
+					forwardAfter:      time.Second * 2, // 2022-02-05 00:00:11
+					expectedFreeSlots: 0,
+					expectedTtw:       0, // TODO(@sonirico): Should this be zero?
+					expectedErr:       nil,
 				},
 				{
 					method:            check,
@@ -194,16 +241,18 @@ func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 					requestTokens:     1,
 				},
 				{
-					method:        try,
-					requestTokens: 2, // 2
-					forwardAfter:  0,
-					expectedTtw:   0,
-					expectedErr:   nil,
+					method:            try,
+					requestTokens:     2, // 2
+					expectedFreeSlots: 0,
+					forwardAfter:      0,
+					expectedTtw:       0,
+					expectedErr:       nil,
 				},
 				{
 					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 0,
+					expectedTtw:       time.Second * 9,
 					expectedErr:       ErrRateLimitExceeded,
 					requestTokens:     1,
 				},
@@ -218,82 +267,133 @@ func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 				{
 					method:            check,
 					forwardAfter:      0,
+					expectedTtw:       0,
 					expectedFreeSlots: 10,
 					expectedErr:       nil,
 					requestTokens:     3,
 				},
 				{
-					method:        try,
-					requestTokens: 3, // 3
-					forwardAfter:  0,
-					expectedTtw:   0,
-					expectedErr:   nil,
+					method:            try,
+					requestTokens:     3, // 3
+					expectedFreeSlots: 7,
+					forwardAfter:      0,
+					expectedTtw:       0,
+					expectedErr:       nil,
 				},
 				{
 					method:            check,
 					forwardAfter:      0,
-					expectedFreeSlots: 7,
+					expectedFreeSlots: 7, // TODO(@sonirico): Should this be 2?
 					expectedErr:       nil,
 					requestTokens:     5,
+					expectedTtw:       0,
 				},
 				{
-					method:        try,
-					requestTokens: 5, // 8
-					forwardAfter:  0,
-					expectedTtw:   0,
-					expectedErr:   nil,
+					method:            try,
+					requestTokens:     5, // 8
+					forwardAfter:      0,
+					expectedFreeSlots: 2,
+					expectedTtw:       0,
+					expectedErr:       nil,
 				},
 				{
 					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 2,
 					expectedErr:       ErrRateLimitExceeded,
+					expectedTtw:       time.Second * 2,
 					requestTokens:     3,
 				},
 				// Rate Limit is reached and 1 second passes...
 				{
-					method:        try,
-					requestTokens: 3, // 11
-					forwardAfter:  time.Second,
-					expectedTtw:   time.Second * 2,
-					expectedErr:   ErrRateLimitExceeded,
+					method:            try,
+					requestTokens:     3, // 11
+					forwardAfter:      time.Second,
+					expectedFreeSlots: 0,
+					expectedTtw:       time.Second * 2,
+					expectedErr:       ErrRateLimitExceeded,
 				},
 				{
 					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 0,
+					expectedTtw:       time.Second,
 					expectedErr:       ErrRateLimitExceeded,
 					requestTokens:     1,
 				},
 				// Rate limit is still held. Moving 2 seconds and getting into next window
 				{
-					method:        try,
-					requestTokens: 3, // 11
-					forwardAfter:  time.Second * 2,
-					expectedTtw:   time.Second,
-					expectedErr:   ErrRateLimitExceeded,
+					method:            try,
+					requestTokens:     3, // 11
+					forwardAfter:      time.Second * 2,
+					expectedFreeSlots: 0,
+					expectedTtw:       time.Second,
+					expectedErr:       ErrRateLimitExceeded,
 				},
 				{
 					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 10,
+					expectedTtw:       0,
 					expectedErr:       nil,
 					requestTokens:     1,
 				},
 				// Requests check be made again
 				{
-					method:        try,
-					requestTokens: 3, // 3
-					forwardAfter:  0,
-					expectedTtw:   0,
-					expectedErr:   nil,
+					method:            try,
+					requestTokens:     3, // 3
+					forwardAfter:      0,
+					expectedFreeSlots: 7,
+					expectedTtw:       0,
+					expectedErr:       nil,
 				},
 				{
 					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 7,
+					expectedTtw:       0,
 					expectedErr:       nil,
 					requestTokens:     1,
+				},
+			},
+		},
+		{
+			name:      "dump just works",
+			capacity:  2,
+			rate:      Rate{Amount: 10, Unit: time.Second},
+			startTime: time.Date(2022, 02, 05, 0, 0, 8, 0, time.UTC),
+			steps: []testTokenFixedWindowStep{
+				{
+					method:            dump,
+					expectedFreeSlots: 2,
+					expectedTtw:       0,
+					expectedErr:       nil,
+				},
+				{
+					method:            try,
+					requestTokens:     1, // 1
+					expectedFreeSlots: 1,
+					expectedTtw:       0,
+					expectedErr:       nil,
+				},
+				{
+					method:            dump,
+					expectedFreeSlots: 1,
+					expectedTtw:       0,
+					expectedErr:       nil,
+				},
+				{
+					method:            try,
+					requestTokens:     1,
+					expectedFreeSlots: 0,
+					expectedTtw:       0,
+					expectedErr:       nil,
+				},
+				{
+					method:            dump,
+					expectedFreeSlots: 0,
+					expectedTtw:       time.Second * 2,
+					expectedErr:       nil,
 				},
 			},
 		},
@@ -312,40 +412,28 @@ func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 				}),
 			)
 
+			var (
+				r   Result
+				err error
+			)
+
 			for i, step := range test.steps {
 				clock.Forward(step.forwardBefore)
 
 				switch step.method {
 				case try:
-					res, err := rl.Try(ctx, step.requestTokens)
-					ttw := res.TimeToWait
-
-					if !errors.Is(err, step.expectedErr) {
-						t.Errorf("step(%d) unexpected error, want %v, have %v",
-							i+1, step.expectedErr, err)
-					}
-
-					if ttw != step.expectedTtw {
-						t.Errorf("step(%d) unexpected time to wait, want %v, have %v",
-							i+1, step.expectedTtw, ttw)
-					}
-
+					r, err = rl.Try(ctx, step.requestTokens)
 				case check:
-					res, err := rl.Check(ctx, step.requestTokens)
-					free := res.FreeSlots
-
-					if !errors.Is(err, step.expectedErr) {
-						t.Errorf("step(%d) unexpected error, want %v, have %v",
-							i+1, step.expectedErr, err)
-					}
-
-					if free != step.expectedFreeSlots {
-						t.Errorf("step(%d) unexpected free slots, want %d, have %d",
-							i+1, step.expectedFreeSlots, free)
-					}
+					r, err = rl.Check(ctx, step.requestTokens)
+				case dump:
+					r, err = rl.Dump(ctx)
 				}
 
-				clock.Forward(step.forwardAfter)
+				if assertTokenFixedWindowStepEquals(t, i+1, r, err, step) {
+					clock.Forward(step.forwardAfter)
+				} else {
+					t.FailNow()
+				}
 			}
 		})
 	}

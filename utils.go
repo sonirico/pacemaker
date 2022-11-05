@@ -4,6 +4,8 @@ import (
 	"crypto"
 	"encoding/hex"
 	"strings"
+
+	"golang.org/x/exp/constraints"
 )
 
 func AtLeast(n int64) func(int64) int64 {
@@ -30,4 +32,11 @@ func Sha1Hash(s string) string {
 
 func errIsRedisNoScript(err error) bool {
 	return strings.HasPrefix(err.Error(), "NOSCRIPT")
+}
+
+func min[T constraints.Integer](a, b T) T {
+	if a > b {
+		return b
+	}
+	return a
 }

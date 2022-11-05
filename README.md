@@ -57,4 +57,3 @@ to read more about rate limits.
 - Leaky bucket rate limit
 - Composite rate limit
 - Service rate limit
-- Make `Try` method to return free slots

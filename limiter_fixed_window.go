@@ -23,6 +23,7 @@ type FixedWindowArgs struct {
 // First request time: 2022-02-05 10:23:23
 // Rate limit interval: new window every 10 seconds
 // First request window: from 2022-02-05 10:23:23 to 2022-02-05 10:23:33
+// FIXME: This rate limiter is not consistent across restarts, as there are no
 type FixedWindowRateLimiter struct {
 	rate Rate
 
@@ -47,6 +48,44 @@ func (l *FixedWindowRateLimiter) Try(ctx context.Context) (Result, error) {
 
 func (l *FixedWindowRateLimiter) Check(ctx context.Context) (Result, error) {
 	return l.check(ctx, 1)
+}
+
+// Dump returns the state of rate limit according storage. It never returns a ErrRateLimit error.
+func (l *FixedWindowRateLimiter) Dump(ctx context.Context) (Result, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	now := l.clock.Now()
+
+	if l.deadline.IsZero() {
+		// FIXME: If the state in memory was dropped (service restart) but rate limit
+		// still applied (stored in DB) the current Dump call will yield incoherent
+		// results as 'deadline' is used as DB key.
+		l.deadline = now.Add(l.rate.Duration())
+	}
+
+	ttw := l.deadline.Sub(now)
+
+	var (
+		c   int64
+		err error
+	)
+
+	c, err = l.db.Get(ctx, l.deadline)
+
+	if err != nil {
+		// TODO: Make this behaviour configurable. If storage cannot be accessed, do we pass, or do we block...?
+		return nores, err
+	}
+
+	free := l.capacity - c
+
+	if free >= 0 {
+		return res(0, free), nil
+	}
+
+	return res(ttw, 0), nil
+
 }
 
 func (l *FixedWindowRateLimiter) try(ctx context.Context, tokens int64) (Result, error) {
@@ -128,17 +167,19 @@ func (l *FixedWindowRateLimiter) check(ctx context.Context, tokens int64) (Resul
 	free := l.capacity - c - tokens
 
 	if free >= 0 {
-		return res(ttw, l.capacity-c), nil
+		return res(0, l.capacity-c), nil
 	}
 
 	return res(ttw, 0), ErrRateLimitExceeded
 }
 
 func (l *FixedWindowRateLimiter) process(now time.Time) {
+	dur := l.rate.Duration()
+
 	if l.deadline.IsZero() {
 		// Handle first request
 		l.rateLimitReached = false
-		l.deadline = now.Add(l.rate.Duration())
+		l.deadline = now.Add(dur)
 	} else if !l.deadline.After(now) {
 		// If deadline is before in time than now, calculate next one
 
@@ -153,8 +194,8 @@ func (l *FixedWindowRateLimiter) process(now time.Time) {
 		// now -> 56
 		// deadline -> 33
 		// next deadline -> 63 (33 + 3 * rate) ; 3 = (56 - 33) / 10 + 1
-		missedCycles := now.Sub(l.deadline)/l.rate.Duration() + 1
-		l.deadline = l.deadline.Add(l.rate.Duration() * missedCycles)
+		missedCycles := now.Sub(l.deadline)/dur + 1
+		l.deadline = l.deadline.Add(dur * missedCycles)
 		l.rateLimitReached = false
 	}
 }
@@ -182,7 +223,10 @@ type FixedWindowMemoryStorage struct {
 	ttl      time.Duration
 }
 
-func (s *FixedWindowMemoryStorage) Inc(ctx context.Context, args FixedWindowIncArgs) (int64, error) {
+func (s *FixedWindowMemoryStorage) Inc(
+	ctx context.Context,
+	args FixedWindowIncArgs,
+) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

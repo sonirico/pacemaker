@@ -38,7 +38,7 @@ type FixedTruncatedWindowRateLimiter struct {
 
 	mu sync.Mutex
 
-	rate             time.Duration
+	rate             Rate
 	window           time.Time
 	capacity         int64
 	rateLimitReached bool
@@ -63,14 +63,21 @@ func (l *FixedTruncatedWindowRateLimiter) Check(ctx context.Context) (Result, er
 }
 
 func (l *FixedTruncatedWindowRateLimiter) Dump(ctx context.Context) (r Result, err error) {
-	now := l.clock.Now()
-	window := now.Truncate(l.rate)
+	l.mu.Lock()
+	defer l.mu.Unlock()
 
-	c, err := l.db.Get(ctx, window)
+	now := l.clock.Now()
+
+	if TimeGTE(l.window.Add(l.rate.Duration()), now) {
+		l.rateLimitReached = false
+		l.window = now.Truncate(l.rate.Unit)
+	}
+
+	c, err := l.db.Get(ctx, l.window)
 
 	if c >= l.capacity {
 		// rate limit exceeded
-		r = res(l.rate-now.Sub(window), l.capacity-c)
+		r = res(l.window.Add(l.rate.Duration()).Sub(now), l.capacity-c)
 	} else {
 		r = res(0, l.capacity-c)
 	}
@@ -89,21 +96,19 @@ func (l *FixedTruncatedWindowRateLimiter) try(ctx context.Context, tokens int64)
 
 	now := l.clock.Now()
 
-	window := now.Truncate(l.rate)
-
-	if !l.window.Equal(window) {
+	if TimeGTE(l.window.Add(l.rate.Duration()), now) {
 		l.rateLimitReached = false
-		l.window = window
+		l.window = now.Truncate(l.rate.Unit)
 	}
 
-	ttw := l.rate - now.Sub(window)
+	ttw := l.window.Add(l.rate.Duration()).Sub(now)
 
 	if l.rateLimitReached {
 		return res(ttw, 0), ErrRateLimitExceeded
 	}
 
 	c, err := l.db.Inc(ctx, FixedWindowIncArgs{
-		Window:   window,
+		Window:   l.window,
 		Tokens:   tokens,
 		Capacity: l.capacity,
 		TTL:      ttw,
@@ -134,22 +139,20 @@ func (l *FixedTruncatedWindowRateLimiter) check(ctx context.Context, tokens int6
 
 	now := l.clock.Now()
 
-	window := now.Truncate(l.rate)
-
-	if !l.window.Equal(window) {
+	if TimeGTE(l.window.Add(l.rate.Duration()), now) {
 		// new window so no rate Limit
 		l.rateLimitReached = false
-		l.window = window
+		l.window = now.Truncate(l.rate.Unit)
 		return res(0, l.capacity), nil
 	}
 
-	ttw := l.rate - now.Sub(window)
+	ttw := l.window.Add(l.rate.Duration()).Sub(now)
 
 	if l.rateLimitReached {
 		return res(ttw, 0), ErrRateLimitExceeded
 	}
 
-	c, err := l.db.Get(ctx, window)
+	c, err := l.db.Get(ctx, l.window)
 
 	if err != nil {
 		return nores, err
@@ -177,7 +180,7 @@ func NewFixedTruncatedWindowRateLimiter(
 ) *FixedTruncatedWindowRateLimiter {
 	return &FixedTruncatedWindowRateLimiter{
 		capacity:         args.Capacity,
-		rate:             args.Rate.Duration(),
+		rate:             args.Rate,
 		clock:            args.Clock,
 		db:               args.DB,
 		rateLimitReached: false,

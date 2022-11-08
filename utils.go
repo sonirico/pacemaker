@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"encoding/hex"
 	"strings"
+	"time"
 
 	"golang.org/x/exp/constraints"
 )
@@ -39,4 +40,10 @@ func min[T constraints.Integer](a, b T) T {
 		return b
 	}
 	return a
+}
+
+// TimeGTE returns true if `target` is greater than or equals `from`
+func TimeGTE(from time.Time, target time.Time) bool {
+	// return target.After(from) || target.Equal(from)
+	return !target.Before(from)
 }

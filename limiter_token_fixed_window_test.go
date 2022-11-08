@@ -173,7 +173,7 @@ func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 6,
-					expectedTtw:       time.Second * 4,
+					expectedTtw:       time.Second * 10,
 					expectedErr:       ErrRateLimitExceeded,
 					requestTokens:     20,
 				},
@@ -182,14 +182,14 @@ func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 					requestTokens:     7, // 21 -> Rate Limit!
 					forwardAfter:      0,
 					expectedFreeSlots: 0,
-					expectedTtw:       time.Second * 4,
+					expectedTtw:       time.Second * 10,
 					expectedErr:       ErrRateLimitExceeded,
 				},
 				{
 					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 0,
-					expectedTtw:       time.Second * 4,
+					expectedTtw:       time.Second * 10,
 					expectedErr:       ErrRateLimitExceeded,
 					requestTokens:     1,
 				},
@@ -227,8 +227,8 @@ func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 				},
 				{
 					method:            try,
-					requestTokens:     1,               // 2
-					forwardAfter:      time.Second * 2, // 2022-02-05 00:00:11
+					requestTokens:     1,
+					forwardAfter:      time.Second * 9, // now it's 2022-02-05 00:00:09
 					expectedFreeSlots: 0,
 					expectedTtw:       0, // TODO(@sonirico): Should this be zero?
 					expectedErr:       nil,
@@ -252,7 +252,7 @@ func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 0,
-					expectedTtw:       time.Second * 9,
+					expectedTtw:       time.Second * 10,
 					expectedErr:       ErrRateLimitExceeded,
 					requestTokens:     1,
 				},
@@ -301,33 +301,31 @@ func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 					forwardAfter:      0,
 					expectedFreeSlots: 2,
 					expectedErr:       ErrRateLimitExceeded,
-					expectedTtw:       time.Second * 2,
+					expectedTtw:       time.Second * 10,
 					requestTokens:     3,
 				},
-				// Rate Limit is reached and 1 second passes...
 				{
 					method:            try,
 					requestTokens:     3, // 11
 					forwardAfter:      time.Second,
 					expectedFreeSlots: 0,
-					expectedTtw:       time.Second * 2,
+					expectedTtw:       time.Second * 10,
 					expectedErr:       ErrRateLimitExceeded,
 				},
 				{
 					method:            check,
 					forwardAfter:      0,
 					expectedFreeSlots: 0,
-					expectedTtw:       time.Second,
+					expectedTtw:       time.Second * 9,
 					expectedErr:       ErrRateLimitExceeded,
 					requestTokens:     1,
 				},
-				// Rate limit is still held. Moving 2 seconds and getting into next window
 				{
 					method:            try,
 					requestTokens:     3, // 11
-					forwardAfter:      time.Second * 2,
+					forwardAfter:      time.Second * 9,
 					expectedFreeSlots: 0,
-					expectedTtw:       time.Second,
+					expectedTtw:       time.Second * 9,
 					expectedErr:       ErrRateLimitExceeded,
 				},
 				{
@@ -338,7 +336,6 @@ func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 					expectedErr:       nil,
 					requestTokens:     1,
 				},
-				// Requests check be made again
 				{
 					method:            try,
 					requestTokens:     3, // 3
@@ -392,7 +389,7 @@ func TestNewTokenFixedWindowRateLimiter_WindowTruncated(t *testing.T) {
 				{
 					method:            dump,
 					expectedFreeSlots: 0,
-					expectedTtw:       time.Second * 2,
+					expectedTtw:       time.Second * 10,
 					expectedErr:       nil,
 				},
 			},

@@ -37,11 +37,11 @@ help:
 .PHONY: fmt
 fmt:
 	$(info: Make: Format)
-	gofmt -w ./**/*
+	gofmt -w ./**/*.go
 	gofmt -w ./*.go
-	goimports -w ./**/*
+	goimports -w ./**/*.go
 	goimports -w ./*.go
-	golines -w ./**/*
+	golines -w ./**/*.go
 	golines -w ./*.go
 
 .PHONY: test

@@ -3,13 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/go-redis/redis/v8"
-	"github.com/ory/dockertest/v3"
-	"github.com/sonirico/pacemaker"
 	"log"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/go-redis/redis/v8"
+	"github.com/ory/dockertest/v3"
+	"github.com/sonirico/pacemaker"
 )
 
 var (
@@ -28,10 +29,14 @@ func TestMain(t *testing.M) {
 		log.Fatalf("could not create resource due to %s", err)
 	}
 
+	fmt.Println("spawning redis container")
+
 	if err := pool.Retry(func() error {
 		db = redis.NewClient(&redis.Options{
 			Addr: fmt.Sprintf("localhost:%s", resource.GetPort("6379/tcp")),
 		})
+
+		fmt.Println("redis ping")
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 		defer cancel()
@@ -41,7 +46,7 @@ func TestMain(t *testing.M) {
 		log.Fatalf("cannot connect to docker due to %s", err)
 	}
 
-	log.Println("redis is up and running")
+	fmt.Println("redis is up and running")
 
 	returnCode := t.Run()
 
@@ -55,8 +60,6 @@ func TestMain(t *testing.M) {
 func TestFixedWindow_RunOk(t *testing.T) {
 	if err := db.Ping(context.Background()).Err(); err != nil {
 		t.Errorf("test has failed, expected redis to be running, have error: %v", err)
-	} else {
-		log.Println("redis is running ")
 	}
 
 	opts := pacemaker.FixedWindowArgs{
@@ -90,8 +93,6 @@ func TestFixedWindow_RunOk(t *testing.T) {
 func TestFixedWindow_ShouldMaintainState(t *testing.T) {
 	if err := db.Ping(context.Background()).Err(); err != nil {
 		t.Errorf("test has failed, expected redis to be running, have error: %v", err)
-	} else {
-		log.Println("redis is running ")
 	}
 
 	ctx := context.Background()

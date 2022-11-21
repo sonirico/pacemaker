@@ -49,6 +49,12 @@ test:
 	$(info: Make: Test)
 	CGO_ENABLED=1 go test -race ${TEST_OPTIONS} ${SOURCE_FILES} -run ${TEST_PATTERN} -timeout=${TEST_TIMEOUT}
 
+.PHONY: test-it
+test-it:
+	$(info: Make: Test Integration)
+	go clean -testcache ;
+	pushd ./it && CGO_ENABLED=1 go test -race ${TEST_OPTIONS} ./... -run ${TEST_PATTERN} -timeout=${TEST_TIMEOUT} ; popd
+
 .PHONY: bench
 bench:
 	$(info: Make: Bench)

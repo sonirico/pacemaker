@@ -32,6 +32,7 @@ all: help
 help:
 	@echo "make fmt - use go fmt"
 	@echo "make test - run go test including race detection"
+	@echo "make test-it - run integration tests"
 	@echo "make bench - run go test including benchmarking"
 
 .PHONY: fmt

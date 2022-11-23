@@ -22,10 +22,10 @@ func main() {
 	rateLimit :=
 		pacemaker.NewFixedTruncatedWindowRateLimiter(
 			pacemaker.FixedTruncatedWindowArgs{
-				Capacity: 1200,
+				Capacity: 1000,
 				Rate: pacemaker.Rate{
-					Unit:   time.Minute,
-					Amount: 3,
+					Unit:   time.Hour,
+					Amount: 24,
 				},
 				Clock: pacemaker.NewClock(),
 				DB: pacemaker.NewFixedWindowRedisStorage(

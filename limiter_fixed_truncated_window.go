@@ -70,7 +70,7 @@ func (l *FixedTruncatedWindowRateLimiter) Dump(ctx context.Context) (r Result, e
 
 	if TimeGTE(l.window.Add(l.rate.Duration()), now) {
 		l.rateLimitReached = false
-		l.window = now.Truncate(l.rate.Unit)
+		l.window = now.Truncate(l.rate.TruncateDuration())
 	}
 
 	c, err := l.db.Get(ctx, l.window)
@@ -98,7 +98,7 @@ func (l *FixedTruncatedWindowRateLimiter) try(ctx context.Context, tokens int64)
 
 	if TimeGTE(l.window.Add(l.rate.Duration()), now) {
 		l.rateLimitReached = false
-		l.window = now.Truncate(l.rate.Unit)
+		l.window = now.Truncate(l.rate.TruncateDuration())
 	}
 
 	ttw := l.window.Add(l.rate.Duration()).Sub(now)
@@ -142,7 +142,7 @@ func (l *FixedTruncatedWindowRateLimiter) check(ctx context.Context, tokens int6
 	if TimeGTE(l.window.Add(l.rate.Duration()), now) {
 		// new window so no rate Limit
 		l.rateLimitReached = false
-		l.window = now.Truncate(l.rate.Unit)
+		l.window = now.Truncate(l.rate.TruncateDuration())
 		return res(0, l.capacity), nil
 	}
 

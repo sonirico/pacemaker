@@ -69,6 +69,93 @@ func assertFixedWindowTruncatedStepEquals(
 func TestNewFixedTruncatedWindowRateLimiter(t *testing.T) {
 	tests := []testFixedWindowTruncated{
 		{
+
+			name:      "window of 1 day configured with rate duration as a whole",
+			capacity:  3,
+			rate:      Rate{Amount: 24, Unit: time.Hour},
+			startTime: time.Date(2022, 02, 05, 4, 23, 00, 0, time.UTC),
+			steps: []testFixedWindowTruncatedStep{
+				{
+					method:            check,
+					passTime:          0,
+					expectedErr:       nil,
+					expectedFreeSlots: 3,
+					expectedTtw:       0,
+				},
+				{
+					method:            try,
+					passTime:          time.Hour * 6, // 4
+					expectedErr:       nil,
+					expectedFreeSlots: 2,
+					expectedTtw:       0,
+				},
+				{
+					method:            try,
+					passTime:          time.Hour * 6, // 10
+					expectedErr:       nil,
+					expectedFreeSlots: 1,
+					expectedTtw:       0,
+				},
+				{
+					method:            try,
+					passTime:          time.Hour * 6, // 16
+					expectedErr:       nil,
+					expectedFreeSlots: 0,
+					expectedTtw:       0,
+				},
+				{
+					method:            try,
+					passTime:          0, // 22:23
+					expectedErr:       ErrRateLimitExceeded,
+					expectedFreeSlots: 0,
+					expectedTtw:       time.Hour*1 + time.Minute*37,
+				},
+			},
+		},
+		{
+			name:      "window of 1 day configured with Unit as a whole",
+			capacity:  3,
+			rate:      Rate{Amount: 1, Unit: time.Hour * 24},
+			startTime: time.Date(2022, 02, 05, 4, 23, 00, 0, time.UTC),
+			steps: []testFixedWindowTruncatedStep{
+				{
+					method:            check,
+					passTime:          0,
+					expectedErr:       nil,
+					expectedFreeSlots: 3,
+					expectedTtw:       0,
+				},
+				{
+					method:            try,
+					passTime:          time.Hour * 6, // 4
+					expectedErr:       nil,
+					expectedFreeSlots: 2,
+					expectedTtw:       0,
+				},
+				{
+					method:            try,
+					passTime:          time.Hour * 6, // 10
+					expectedErr:       nil,
+					expectedFreeSlots: 1,
+					expectedTtw:       0,
+				},
+				{
+					method:            try,
+					passTime:          time.Hour * 6, // 16
+					expectedErr:       nil,
+					expectedFreeSlots: 0,
+					expectedTtw:       0,
+				},
+				{
+					method:            try,
+					passTime:          0, // 22:23
+					expectedErr:       ErrRateLimitExceeded,
+					expectedFreeSlots: 0,
+					expectedTtw:       time.Hour*1 + time.Minute*37,
+				},
+			},
+		},
+		{
 			name:      "start of the window reaches rate limit before first tick",
 			capacity:  2,
 			rate:      Rate{Amount: 10, Unit: time.Second},

@@ -2,6 +2,7 @@ package pacemaker
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 )
@@ -9,6 +10,7 @@ import (
 type fixedWindowStorage interface {
 	Inc(ctx context.Context, args FixedWindowIncArgs) (int64, error)
 	Get(ctx context.Context, window time.Time) (int64, error)
+	LastWindow(ctx context.Context) (time.Time, error)
 }
 
 type FixedWindowArgs struct {
@@ -55,14 +57,11 @@ func (l *FixedWindowRateLimiter) Dump(ctx context.Context) (Result, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	now := l.clock.Now()
-
-	if l.deadline.IsZero() {
-		// FIXME: If the state in memory was dropped (service restart) but rate limit
-		// still applied (stored in DB) the current Dump call will yield incoherent
-		// results as 'deadline' is used as DB key.
-		l.deadline = now.Add(l.rate.Duration())
+	if err := l.fillDeadline(ctx); err != nil {
+		return res(0, 0), err
 	}
+
+	now := l.clock.Now()
 
 	ttw := l.deadline.Sub(now)
 
@@ -96,6 +95,10 @@ func (l *FixedWindowRateLimiter) try(ctx context.Context, tokens int64) (Result,
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
+	if err := l.fillDeadline(ctx); err != nil {
+		return res(0, 0), err
+	}
 
 	now := l.clock.Now()
 
@@ -141,6 +144,10 @@ func (l *FixedWindowRateLimiter) check(ctx context.Context, tokens int64) (Resul
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
+	if err := l.fillDeadline(ctx); err != nil {
+		return res(0, 0), err
+	}
 
 	now := l.clock.Now()
 
@@ -200,6 +207,23 @@ func (l *FixedWindowRateLimiter) process(now time.Time) {
 	}
 }
 
+func (l *FixedWindowRateLimiter) fillDeadline(ctx context.Context) error {
+	if !l.deadline.IsZero() {
+		return nil
+	}
+
+	deadline, err := l.db.LastWindow(ctx)
+	if err != nil {
+		if errors.Is(ErrNoLastKey, err) {
+			return nil
+		}
+		return err
+	}
+
+	l.deadline = deadline
+	return nil
+}
+
 func (l *FixedWindowRateLimiter) fixedWindow() {}
 
 // NewFixedWindowRateLimiter returns a new instance of FixedWindowRateLimiter from struct of args
@@ -251,6 +275,13 @@ func (s *FixedWindowMemoryStorage) Get(ctx context.Context, window time.Time) (i
 	}
 
 	return s.counter, ctx.Err()
+}
+
+func (s *FixedWindowMemoryStorage) LastWindow(ctx context.Context) (time.Time, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.deadline, ctx.Err()
 }
 
 // NewFixedWindowMemoryStorage returns a new instance of FixedWindowMemoryStorage

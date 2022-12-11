@@ -24,11 +24,14 @@ type (
 	FixedWindowRedisStorage struct {
 		cli *redis.Client
 
+		opts FixedWindowRedisStorageOpts
+
 		keyGenerator func(time.Time) string
 	}
 )
 
 const (
+	keySep = "|"
 	script = `
 		local counter = tonumber(redis.call('GET', KEYS[1])) or 0
 		local tokens = tonumber(ARGV[1])
@@ -91,6 +94,33 @@ func (s FixedWindowRedisStorage) Inc(
 	return
 }
 
+func (s FixedWindowRedisStorage) Keys(ctx context.Context) (res []string, err error) {
+	cmd := s.cli.Keys(ctx, s.opts.Prefix+"*")
+	if err = cmd.Err(); err != nil {
+		return nil, err
+	}
+
+	res, err = cmd.Result()
+	return
+}
+
+func (s FixedWindowRedisStorage) LastWindow(ctx context.Context) (ts time.Time, err error) {
+	var keys []string
+	keys, err = s.Keys(ctx)
+	if err != nil {
+		return
+	}
+
+	le := len(keys)
+	if le < 1 {
+		err = ErrNoLastKey
+		return
+	}
+
+	ts, err = LatestTsFromKeys(keys, keySep)
+	return
+}
+
 func (s FixedWindowRedisStorage) Get(
 	ctx context.Context,
 	window time.Time,
@@ -115,9 +145,10 @@ func NewFixedWindowRedisStorage(
 	opts FixedWindowRedisStorageOpts,
 ) FixedWindowRedisStorage {
 	return FixedWindowRedisStorage{
-		cli: cli,
+		cli:  cli,
+		opts: opts,
 		keyGenerator: func(t time.Time) string {
-			return opts.Prefix + "|" + strconv.Itoa(int(t.UnixNano()))
+			return opts.Prefix + keySep + strconv.Itoa(int(t.UnixNano()))
 		},
 	}
 }

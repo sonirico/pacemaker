@@ -32,22 +32,29 @@ all: help
 help:
 	@echo "make fmt - use go fmt"
 	@echo "make test - run go test including race detection"
+	@echo "make test-it - run integration tests"
 	@echo "make bench - run go test including benchmarking"
 
 .PHONY: fmt
 fmt:
 	$(info: Make: Format)
-	gofmt -w ./**/*
+	gofmt -w ./**/*.go
 	gofmt -w ./*.go
-	goimports -w ./**/*
+	goimports -w ./**/*.go
 	goimports -w ./*.go
-	golines -w ./**/*
+	golines -w ./**/*.go
 	golines -w ./*.go
 
 .PHONY: test
 test:
 	$(info: Make: Test)
 	CGO_ENABLED=1 go test -race ${TEST_OPTIONS} ${SOURCE_FILES} -run ${TEST_PATTERN} -timeout=${TEST_TIMEOUT}
+
+.PHONY: test-it
+test-it:
+	$(info: Make: Test Integration)
+	go clean -testcache ;
+	pushd ./it && CGO_ENABLED=1 go test -race ${TEST_OPTIONS} ./... -run ${TEST_PATTERN} -timeout=${TEST_TIMEOUT} ; popd
 
 .PHONY: bench
 bench:

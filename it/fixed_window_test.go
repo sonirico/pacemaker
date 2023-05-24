@@ -131,3 +131,121 @@ func TestFixedWindow_ShouldMaintainState(t *testing.T) {
 
 	assertFreeSlots(t, 98, state.FreeSlots)
 }
+
+func TestFixedWindow_SubMinute_CapacityGreaterThanOne_RunOk(t *testing.T) {
+	if err := db.Ping(context.Background()).Err(); err != nil {
+		t.Errorf("test has failed, expected redis to be running, have error: %v", err)
+	}
+
+	opts := pacemaker.FixedWindowArgs{
+		Capacity: 3,
+		Rate: pacemaker.Rate{
+			Amount: 3,
+			Unit:   time.Second,
+		},
+		Clock: pacemaker.NewClock(),
+		DB: pacemaker.NewFixedWindowRedisStorage(
+			db,
+			pacemaker.FixedWindowRedisStorageOpts{
+				Prefix: "pacemaker|fixed-window|cap-3",
+			},
+		),
+	}
+
+	limiter := pacemaker.NewFixedWindowRateLimiter(opts)
+
+	ctx := context.Background()
+
+	_, err := limiter.Try(ctx)
+	assertNoError(t, err)
+	state, err := limiter.Dump(ctx)
+	assertNoError(t, err)
+	assertFreeSlots(t, 2, state.FreeSlots)
+
+	_, err = limiter.Try(ctx)
+	assertNoError(t, err)
+	state, err = limiter.Dump(ctx)
+	assertNoError(t, err)
+	assertFreeSlots(t, 1, state.FreeSlots)
+
+	_, err = limiter.Try(ctx)
+	assertNoError(t, err)
+	state, err = limiter.Dump(ctx)
+	assertNoError(t, err)
+	assertFreeSlots(t, 0, state.FreeSlots)
+
+	var res pacemaker.Result
+	res, err = limiter.Try(ctx)
+
+	assertError(t, pacemaker.ErrRateLimitExceeded, err)
+
+	state, err = limiter.Dump(ctx)
+	assertFreeSlots(t, 0, state.FreeSlots)
+
+	time.Sleep(res.TimeToWait)
+
+	_, err = limiter.Try(ctx)
+	assertNoError(t, err)
+	state, err = limiter.Dump(ctx)
+	assertNoError(t, err)
+	assertFreeSlots(t, 2, state.FreeSlots)
+
+}
+
+func TestFixedWindow_SubMinute_CapacityOne_RunOk(t *testing.T) {
+	if err := db.Ping(context.Background()).Err(); err != nil {
+		t.Errorf("test has failed, expected redis to be running, have error: %v", err)
+	}
+
+	opts := pacemaker.FixedWindowArgs{
+		Capacity: 1,
+		Rate: pacemaker.Rate{
+			Amount: 3,
+			Unit:   time.Second,
+		},
+		Clock: pacemaker.NewClock(),
+		DB: pacemaker.NewFixedWindowRedisStorage(
+			db,
+			pacemaker.FixedWindowRedisStorageOpts{
+				Prefix: "pacemaker|fixed-window|cap-1",
+			},
+		),
+	}
+
+	limiter := pacemaker.NewFixedWindowRateLimiter(opts)
+
+	ctx := context.Background()
+
+	_, err := limiter.Try(ctx)
+	assertNoError(t, err)
+	state, err := limiter.Dump(ctx)
+	assertNoError(t, err)
+	assertFreeSlots(t, 0, state.FreeSlots)
+
+	var res pacemaker.Result
+	res, err = limiter.Try(ctx)
+
+	assertError(t, pacemaker.ErrRateLimitExceeded, err)
+
+	state, err = limiter.Dump(ctx)
+	assertFreeSlots(t, 0, state.FreeSlots)
+
+	time.Sleep(res.TimeToWait)
+
+	_, err = limiter.Try(ctx)
+	assertNoError(t, err)
+	state, err = limiter.Dump(ctx)
+	assertNoError(t, err)
+	assertFreeSlots(t, 0, state.FreeSlots)
+	res, err = limiter.Try(ctx)
+
+	assertError(t, pacemaker.ErrRateLimitExceeded, err)
+
+	state, err = limiter.Dump(ctx)
+	assertFreeSlots(t, 0, state.FreeSlots)
+
+	time.Sleep(res.TimeToWait)
+	state, err = limiter.Dump(ctx)
+	assertFreeSlots(t, 1, state.FreeSlots)
+
+}
